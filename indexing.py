@@ -11,27 +11,93 @@ import codecs
 import string
 from nltk.stem.porter import *
 
+'''
+Information of an index term
+'''
+class IndexTerm:
+    def __init__(self, term_id, term):
+        self.term_id = term_id
+        self.term = term
+        self.freq = 0 # frequency of the term in the collection
+
+
+'''
+Document
+'''
+class Doc:
+    def __init__(self, doc_id, filename):
+        self.doc_id = doc_id
+        self.filename = filename
+        self.terms = dict() # term vector of the document
+
+    '''
+    Increase the frequency of a term in the document's term vector by 1.
+    '''
+    def addTermId(self, term_id):
+        # FIXME: replace dict with a more efficient vector representation
+        # May use numpy array here?
+        if term_id in self.terms:
+            self.terms[term_id] += 1
+        else:
+            self.terms[term_id] = 1
+
+'''
+State constants used by the document indexing code
+'''
 STATE_SKIP = 1 # skip
 STATE_CHI = 2 # Chinese
 STATE_ENG = 3 # English
 
-class Indexer:
+'''
+The document collection of the search engine
+'''
+class Collection:
 
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self):
         self.terms = dict()
+        self.docs = []
+        self.new_doc_id = 0
+        self.new_term_id = 0
         self.stemmer = PorterStemmer()
 
+    '''
+    Add a index term to the vocabularies and returns its term_id
+    If the term already exists, its frequency is increased by 1.
+    Otherwise, a new IndexTerm entry will be created for the term.
+    If @isEnglish is True, the term will be converted to lower case and
+    stemming will be performed.
+    '''
     def addTerm(self, term, isEnglish = True):
         if isEnglish:
             term = self.stemmer.stem(term.lower())
-        if term in self.terms:
-            self.terms[term] += 1
-        else:
-            self.terms[term] = 1
 
-    def createIndex(self):
-        f = codecs.open(self.filename, "r", "utf-8")
+        index_term = None
+        if term in self.terms:
+            index_term = self.terms[term]
+            index_term.freq += 1
+        else:
+            index_term = IndexTerm(self.new_term_id, term)
+            self.new_term_id += 1
+            index_term.freq = 1
+            self.terms[term] = index_term
+        return index_term.term_id
+
+    '''
+    Add a new document to the collection
+    '''
+    def addDoc(self, filename):
+        new_id = self.new_doc_id
+        doc = Doc(new_id, filename)
+        self.docs.append(doc)
+        self.new_doc_id += 1
+        self.indexDoc(doc)
+
+    '''
+    Index the specified document
+    @doc is a Doc object
+    '''
+    def indexDoc(self, doc):
+        f = codecs.open(doc.filename, "r", "utf-8")
         content = f.read()
         f.close()
 
@@ -58,33 +124,38 @@ class Indexer:
 
             if next_state != state: # state transition
                 if word:
-                    self.addTerm(word, isEnglish = True)
+                    term_id = self.addTerm(word, isEnglish = True)
+                    doc.addTermId(term_id)
                 if next_state != STATE_SKIP:
                     word = ch
                 else:
                     word = u''
             elif next_state != STATE_SKIP:
                 if next_state == STATE_CHI: # the last char and current char are all Chinese
-                    self.addTerm(word, isEnglish = False) # unigram
+                    term_id = self.addTerm(word, isEnglish = False) # unigram
+                    doc.addTermId(term_id)
                     word = word + ch # make it a bigram
-                    self.addTerm(word, isEnglish = False)
+                    term_id = self.addTerm(word, isEnglish = False)
+                    doc.addTermId(term_id)
                     word = ch # make the next Chinese char unigram again
                 else: # English word
                     word = word + ch
             state = next_state # update state
 
         if word:
-            self.addTerm(word, isEnglish = True)
+            term_id = self.addTerm(word, isEnglish = True)
+            doc.addTermId(term_id)
 
-        for term in self.terms:
-            print term, self.terms[term]
+        for term in sorted(self.terms):
+            index_term = self.terms[term]
+            print index_term.term_id, term, index_term.freq
 
 
 def main():
     if len(sys.argv) < 2:
         return 1
-    indexer = Indexer(sys.argv[1])
-    indexer.createIndex()
+    collection = Collection()
+    collection.addDoc(sys.argv[1])
 
     return 0
 

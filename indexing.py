@@ -53,12 +53,65 @@ The document collection of the search engine
 '''
 class Collection:
 
-    def __init__(self):
+    def __init__(self, dir_path):
+        self.dir_path = dir_path
         self.terms = dict()
         self.docs = []
         self.new_doc_id = 0
         self.new_term_id = 0
         self.stemmer = PorterStemmer()
+
+        # load from disk
+        self.loadTerms()
+        self.loadDocs()
+
+    '''
+    Load the terms/vocabularies in the collection from disk
+    '''
+    def loadTerms(self):
+        self.terms = dict()
+        term_id = 0
+        try:
+            f = codecs.open(self.dir_path + "/terms", "r", "utf-8")
+            for line in f:
+                line = line.strip()
+                self.terms[line] = term_id
+                term_id += 1
+            f.close()
+        except:
+            print "terms cannot be loaded"
+        self.new_term_id = term_id
+
+    '''
+    Load the documents and their indexes in the collection from disk
+    '''
+    def loadDocs(self):
+        # load doc list
+        doc_id = 0
+        try:
+            f = codecs.open(self.dir_path + "/docs", "r", "utf-8")
+            for line in f:
+                doc = Doc(doc_id, line.strip())
+                self.docs.append(doc)
+                doc_id += 1
+            f.close()
+        except:
+            print "docs cannot be loaded"
+        self.new_doc_id = doc_id
+
+        # load index and build document vectors
+        term_id = 0
+        try:
+            f = open(self.dir_path + "/index", "r")
+            for line in f:
+                for doc_id in line.split():
+                    doc_id = int(doc_id)
+                    doc = self.docs[doc_id]
+                    doc.addTermId(term_id)
+                term_id += 1
+            f.close()
+        except:
+            print "index cannot be loaded"
 
     '''
     Add a index term to the vocabularies and returns its term_id
@@ -154,7 +207,7 @@ class Collection:
 def main():
     if len(sys.argv) < 2:
         return 1
-    collection = Collection()
+    collection = Collection(".")
     collection.addDoc(sys.argv[1])
 
     return 0

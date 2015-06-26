@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+
+<html lang="en-US">
+    <head>
+        <title>IR-Final 錄音檔分類搜尋器</title>
+        <meta charset="utf-8" />
+        <link rel="stylesheet" href="{{ static_url("css/base.css") }}">
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap.css" />
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/css/bootstrap-theme.css" />
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.2/js/bootstrap.js"></script>
+    </head>
+    <body>
+        <nav class="navbar navbar-inverse navbar-fixed-top">
+            <div class="container">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                        <span class="sr-only">Toggle navigation</span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="/">IR-Final</a>
+                </div>
+                <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                    <ul class="nav navbar-nav">
+                        {% for (first, second) in bar_urls.items() %}
+                            {% if second["active"] %}
+                            <li class="active"><a href="{{ escape(second["url"]) }}">{{ escape(first) }}<span class="sr-only">(current)</span></a></li>
+                            {% else %}
+                            <li><a href="{{ escape(second["url"]) }}">{{ escape(first) }}</a></li>
+                            {% end %}
+                        {% end %}
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        <div style="clear:both; width:100%; height:70px;"></div>
+
+        {% block content %}{% end %}
+
+        <div style="clear:both; width:100%; height:70px;"></div>
+        <div class="footer-blank"></div>
+        <div class="navbar navbar-inverse navbar-fixed-bottom" id="footer">
+            <p class="navbar-text" style="float:None;">Copyright &copy; NTUCSIE 2015</p>
+        </div>
+    </body>
+</html>

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <div class="jumbotron profile">
+            <h1>Homepage</h1>
+        </div>
+        <h2 class="text-primary">Introduction</h2>
+        <blockquote>
+            <p>It is a tool for searching and labeling WAV files.</p>
+        </blockquote>
+        <h2 class="text-primary">Author</h2>
+        <blockquote>
+            <ul>
+                <li>洪任諭</li>
+                <li>宋彥頡</li>
+                <li>張天慈</li>
+                <li>李俊鈺</li>
+            </ul>
+        </blockquote>
+        <h2 class="text-primary">Usage</h2>
+        <blockquote>
+            <ol>
+                <li>
+                    <h4><a href="/add">Add</a></h4>
+                    <p>新增一個錄音檔，將這個錄音檔做 indexing，並且分類。</p>
+                </li>
+                <li>
+                    <h4><a href="/search">Search</a></h4>
+                    <p>關鍵字搜尋目前已經加入過的錄音檔。</p>
+                </li>
+                <li>
+                    <h4><a href="/view">View</a></h4>
+                    <p>檢視目前已經加入過並已分類的錄音檔。</p>
+                </li>
+            </ol>
+        </blockquote>
+    </div>
+{% end %}

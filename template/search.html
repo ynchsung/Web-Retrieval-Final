@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <div class="jumbotron profile">
+            <h1>Search</h1>
+        </div>
+        <form class="form-horizontal" action="search" method="POST">
+            <div class="form-group">
+                <label class="col-sm-4 control-label">請輸入欲搜尋的關鍵字</label>
+                <div class="col-sm-4">
+                    <input type="text" name="query" class="form-control" />
+                </div>
+                <div class="col-sm-4">
+                    <button type="submit" class="btn btn-success">Submit</button>
+                </div>
+            </div>
+        </form>
+    </div>
+{% end %}

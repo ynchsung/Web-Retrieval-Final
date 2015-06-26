@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <div class="jumbotron profile">
+            <h1>Add</h1>
+        </div>
+        <form class="form-horizontal" action="add" method="POST">
+            <div class="form-group">
+                <label class="col-sm-4 control-label">請輸入欲加入的錄音檔路徑</label>
+                <div class="col-sm-4">
+                    <input type="text" name="path" class="form-control" />
+                </div>
+                <div class="col-sm-4">
+                    <button type="submit" class="btn btn-success">Submit</button>
+                </div>
+            </div>
+        </form>
+    </div>
+{% end %}

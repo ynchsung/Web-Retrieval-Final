@@ -70,17 +70,19 @@ class Collection:
     '''
     def loadTerms(self):
         self.terms = dict()
-        term_id = 0
         try:
             f = codecs.open(self.dir_path + "/terms", "r", "utf-8")
             for line in f:
-                line = line.strip()
-                self.terms[line] = term_id
-                term_id += 1
+                vals = line.split()
+                term = vals[0]
+                term_id = int(vals[1])
+                index_term = IndexTerm(term_id, term)
+                index_term.freq = int(vals[2])
+                self.terms[term] = index_term
             f.close()
         except:
             print "terms cannot be loaded"
-        self.new_term_id = term_id
+        self.new_term_id = len(self.terms)
 
     '''
     Load the documents and their indexes in the collection from disk
@@ -91,9 +93,11 @@ class Collection:
         try:
             f = codecs.open(self.dir_path + "/docs", "r", "utf-8")
             for line in f:
-                doc = Doc(doc_id, line.strip())
-                self.docs.append(doc)
-                doc_id += 1
+                line = line.strip()
+                if line:
+                    doc = Doc(doc_id, line)
+                    self.docs.append(doc)
+                    doc_id += 1
             f.close()
         except:
             print "docs cannot be loaded"
@@ -104,14 +108,42 @@ class Collection:
         try:
             f = open(self.dir_path + "/index", "r")
             for line in f:
-                for doc_id in line.split():
-                    doc_id = int(doc_id)
-                    doc = self.docs[doc_id]
-                    doc.addTermId(term_id)
-                term_id += 1
+                line = line.strip()
+                if line:
+                    for doc_id in line.split():
+                        doc_id = int(doc_id)
+                        doc = self.docs[doc_id]
+                        doc.addTermId(term_id)
+                    term_id += 1
             f.close()
         except:
             print "index cannot be loaded"
+
+    '''
+    Write all index terms and docs to files.
+    '''
+    def save(self):
+        # write index terms
+        f = codecs.open(self.dir_path + "/terms", "w", "utf-8")
+        for term in self.terms:
+            index_term = self.terms[term]
+            f.write("%s %d %d\n" % (term, index_term.term_id, index_term.freq))
+        f.close()
+
+        # write index
+        f = open(self.dir_path + "/index", "w")
+        for doc in self.docs:
+            f.write("%d %d" % (doc.doc_id, len(doc.terms)))
+            for term in doc.terms:
+                f.write(" %d:%d" % (term, doc.terms[term]))
+            f.write("\n")
+        f.close()
+
+        # write doc list
+        f = codecs.open(self.dir_path + "/docs", "w", "utf-8")
+        for doc in self.docs:
+            f.write("%s\n" % (doc.filename))
+        f.close()
 
     '''
     Add a index term to the vocabularies and returns its term_id
@@ -199,9 +231,11 @@ class Collection:
             term_id = self.addTerm(word, isEnglish = True)
             doc.addTermId(term_id)
 
+        '''
         for term in sorted(self.terms):
             index_term = self.terms[term]
             print index_term.term_id, term, index_term.freq
+        '''
 
 
 def main():
@@ -209,6 +243,7 @@ def main():
         return 1
     collection = Collection(".")
     collection.addDoc(sys.argv[1])
+    collection.save()
 
     return 0
 

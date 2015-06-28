@@ -19,6 +19,7 @@ class IndexTerm:
         self.term_id = term_id
         self.term = term
         self.freq = 0 # frequency of the term in the collection
+        self.doc_ids = set() # doc ID list of documents containing this term
 
 
 '''
@@ -55,8 +56,10 @@ class Collection:
 
     def __init__(self, dir_path):
         self.dir_path = dir_path
-        self.terms = dict()
-        self.docs = []
+        self.term_ids = dict() # string to term_id mapping
+        self.terms = [] # list of IndexTerm objects
+        self.docs = [] # list of Doc objects
+        self.doc_ids = dict() # map document names to doc IDs
         self.new_doc_id = 0
         self.new_term_id = 0
         self.stemmer = PorterStemmer()
@@ -69,7 +72,8 @@ class Collection:
     Load the terms/vocabularies in the collection from disk
     '''
     def loadTerms(self):
-        self.terms = dict()
+        self.term_ids = dict()
+        self.terms = []
         try:
             f = codecs.open(self.dir_path + "/terms", "r", "utf-8")
             for line in f:
@@ -78,7 +82,8 @@ class Collection:
                 term_id = int(vals[1])
                 index_term = IndexTerm(term_id, term)
                 index_term.freq = int(vals[2])
-                self.terms[term] = index_term
+                self.term_ids[term] = term_id
+                self.terms.append(index_term)
             f.close()
         except:
             print "terms cannot be loaded"
@@ -91,18 +96,35 @@ class Collection:
         # load doc list
         doc_id = 0
         try:
-            f = codecs.open(self.dir_path + "/docs", "r", "utf-8")
+            f = codecs.open(self.dir_path + "/file-list", "r", "utf-8")
             for line in f:
-                line = line.strip()
-                if line:
-                    doc = Doc(doc_id, line)
+                filename = line.strip()
+                if filename:
+                    doc = Doc(doc_id, filename)
                     self.docs.append(doc)
+                    self.doc_ids[filename] = doc_id # map filename to doc ID
                     doc_id += 1
             f.close()
         except:
-            print "docs cannot be loaded"
+            print "file-list cannot be loaded"
         self.new_doc_id = doc_id
 
+        # load inverted file
+        try:
+            f = open(self.dir_path + "/inverted-file", "r")
+            for line in f:
+                line = line.strip()
+                if line:
+                    vals = line.split()
+                    term_id = int(vals[0])
+                    for doc_id in vals[1:]:
+                        self.terms[term_id].doc_ids.add(int(doc_id))
+            f.close()
+        except:
+            print "inverted-file cannot be loaded"
+
+
+        '''
         # load index and build document vectors
         term_id = 0
         try:
@@ -118,6 +140,7 @@ class Collection:
             f.close()
         except:
             print "index cannot be loaded"
+        '''
 
     '''
     Write all index terms and docs to files.
@@ -125,11 +148,26 @@ class Collection:
     def save(self):
         # write index terms
         f = codecs.open(self.dir_path + "/terms", "w", "utf-8")
-        for term in self.terms:
-            index_term = self.terms[term]
-            f.write("%s %d %d\n" % (term, index_term.term_id, index_term.freq))
+        for index_term in self.terms:
+            f.write("%s %d %d\n" % (index_term.term, index_term.term_id, index_term.freq))
         f.close()
 
+        # write doc list
+        f = codecs.open(self.dir_path + "/file-list", "w", "utf-8")
+        for doc in self.docs:
+            f.write("%s\n" % (doc.filename))
+        f.close()
+
+        # write inverted file
+        f = open(self.dir_path + "/inverted-file", "w")
+        for term in self.terms:
+            f.write("%d" % (term.term_id))
+            for doc_id in term.doc_ids:
+                f.write(" %d" % (doc_id))
+            f.write("\n")
+        f.close()
+
+        '''
         # write index
         f = open(self.dir_path + "/index", "w")
         for doc in self.docs:
@@ -138,12 +176,7 @@ class Collection:
                 f.write(" %d:%d" % (term, doc.terms[term]))
             f.write("\n")
         f.close()
-
-        # write doc list
-        f = codecs.open(self.dir_path + "/docs", "w", "utf-8")
-        for doc in self.docs:
-            f.write("%s\n" % (doc.filename))
-        f.close()
+        '''
 
     '''
     Add a index term to the vocabularies and returns its term_id
@@ -157,14 +190,16 @@ class Collection:
             term = self.stemmer.stem(term.lower())
 
         index_term = None
-        if term in self.terms:
-            index_term = self.terms[term]
+        if term in self.term_ids:
+            term_id = self.term_ids[term]
+            index_term = self.terms[term_id]
             index_term.freq += 1
         else:
             index_term = IndexTerm(self.new_term_id, term)
             self.new_term_id += 1
             index_term.freq = 1
-            self.terms[term] = index_term
+            self.term_ids[term] = index_term.term_id
+            self.terms.append(index_term)
         return index_term.term_id
 
     '''
@@ -210,7 +245,8 @@ class Collection:
             if next_state != state: # state transition
                 if word:
                     term_id = self.addTerm(word, isEnglish = True)
-                    doc.addTermId(term_id)
+                    doc.addTermId(term_id) # add the term to the vector of the doc
+                    self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
                 if next_state != STATE_SKIP:
                     word = ch
                 else:
@@ -219,9 +255,13 @@ class Collection:
                 if next_state == STATE_CHI: # the last char and current char are all Chinese
                     term_id = self.addTerm(word, isEnglish = False) # unigram
                     doc.addTermId(term_id)
+                    self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
+
                     word = word + ch # make it a bigram
                     term_id = self.addTerm(word, isEnglish = False)
                     doc.addTermId(term_id)
+                    self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
+
                     word = ch # make the next Chinese char unigram again
                 else: # English word
                     word = word + ch
@@ -230,6 +270,7 @@ class Collection:
         if word:
             term_id = self.addTerm(word, isEnglish = True)
             doc.addTermId(term_id)
+            self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
 
         '''
         for term in sorted(self.terms):

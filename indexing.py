@@ -42,6 +42,15 @@ class Doc:
         else:
             self.terms[term_id] = 1
 
+    def setTermFreq(self, term_id, val):
+        self.terms[term_id] = val
+
+    def getTermFreq(self, term_id):
+        if term_id in self.terms:
+            return self.terms[term_id]
+        return 0
+
+
 '''
 State constants used by the document indexing code
 '''
@@ -117,31 +126,18 @@ class Collection:
                 if line:
                     vals = line.split()
                     term_id = int(vals[0])
-                    for doc_id in vals[1:]:
-                        self.terms[term_id].doc_ids.add(int(doc_id))
+                    for item in vals[1:]:
+                        cols = item.split(':')
+                        doc_id = int(cols[0])
+                        freq = int(cols[1])
+                        self.terms[term_id].doc_ids.add(doc_id)
+                        # build document vector
+                        doc = self.docs[doc_id]
+                        doc.setTermFreq(term_id, freq)
             f.close()
         except:
             print("inverted-file cannot be loaded")
 
-
-        # build document vectors
-        '''
-        # load index and build document vectors
-        term_id = 0
-        try:
-            f = open(self.dir_path + "/index", "r")
-            for line in f:
-                line = line.strip()
-                if line:
-                    for doc_id in line.split():
-                        doc_id = int(doc_id)
-                        doc = self.docs[doc_id]
-                        doc.addTermId(term_id)
-                    term_id += 1
-            f.close()
-        except:
-            print "index cannot be loaded"
-        '''
 
     '''
     Write all index terms and docs to files.
@@ -164,20 +160,11 @@ class Collection:
         for term in self.terms:
             f.write("%d" % (term.term_id))
             for doc_id in term.doc_ids:
-                f.write(" %d" % (doc_id))
+                doc = self.docs[doc_id]
+                f.write(" %d:%d" % (doc_id, doc.getTermFreq(term.term_id)))
             f.write("\n")
         f.close()
 
-        '''
-        # write index
-        f = open(self.dir_path + "/index", "w")
-        for doc in self.docs:
-            f.write("%d %d" % (doc.doc_id, len(doc.terms)))
-            for term in doc.terms:
-                f.write(" %d:%d" % (term, doc.terms[term]))
-            f.write("\n")
-        f.close()
-        '''
 
     '''
     Add a index term to the vocabularies and returns its term_id
@@ -276,19 +263,13 @@ class Collection:
             doc.addTermId(term_id)
             self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
 
-        '''
-        for term in sorted(self.terms):
-            index_term = self.terms[term]
-            print(index_term.term_id, term, index_term.freq)
-        '''
-
 
 def main():
     if len(sys.argv) < 2:
         return 1
     collection = Collection(".")
-    # collection.addDoc(sys.argv[1])
-    # collection.save()
+    collection.addDoc(sys.argv[1])
+    collection.save()
 
     return 0
 

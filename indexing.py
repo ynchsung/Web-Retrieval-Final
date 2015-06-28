@@ -22,6 +22,32 @@ class IndexTerm:
 
 
 '''
+Reader of *.srt files
+'''
+class SrtFileReader:
+    def __init__(self, filename):
+        self.filename = filename
+
+    def read(self):
+        state = 0
+        f = open(self.filename, "r")
+        lines = []
+        for line in f:
+            if state == 0: # skip No. of subtitle
+                state = 1
+            elif state == 1: # skip time
+                state = 2
+            else: # subtitle
+                line = line.strip()
+                if line:
+                    lines.append(line)
+                else: # end of subtitle
+                    state = 0
+        f.close()
+        return '\n'.join(lines)
+
+
+'''
 Document
 '''
 class Doc:
@@ -208,9 +234,13 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
-        f = open(doc.filename, "r")
-        content = f.read()
-        f.close()
+        if doc.filename.endswith(".srt"): # *.srt subtitle file
+            reader = SrtFileReader(doc.filename)
+            content = reader.read()
+        else: # ordinary text file
+            f = open(doc.filename, "r")
+            content = f.read()
+            f.close()
 
         word = ''
         state = STATE_SKIP

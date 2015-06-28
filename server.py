@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import time
 from copy import deepcopy
 import tornado.ioloop
 import tornado.web
@@ -39,19 +40,34 @@ class ViewHandler(tornado.web.RequestHandler):
                 "./HTLin/4.wav",
             ],
         }
-        self.render("view.html", bar_urls=bu, data=data)
+        success = False
+        try:
+            tmp = self.get_query_argument("success")
+            success = True
+        except:
+            pass
+        self.render("view.html", bar_urls=bu, data=data, success=success)
 
 class AddHandler(tornado.web.RequestHandler):
     def get(self):
         bu = deepcopy(bar_urls)
         bu["Add"]["active"] = True
-        self.render("add.html", bar_urls=bu)
+        retry = False
+        try:
+            tmp = self.get_query_argument("retry")
+            retry = True
+        except:
+            pass
+        self.render("add.html", bar_urls=bu, retry=retry)
 
     def post(self):
         path = self.get_argument("path")
         # TODO:
         # add_new_record(path)
-        self.write("POST: server get %s"%(path,))
+        # if success:
+        self.redirect("/view?success")
+        # else:
+        # self.redirect("/add?retry")
 
 class SearchHandler(tornado.web.RequestHandler):
     def get(self):

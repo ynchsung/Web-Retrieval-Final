@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
+    {% if success %}
+    <script>alert("Adding successfully!!!");</script>
+    {% end %}
     <div class="container">
         <div class="jumbotron profile">
             <h1>View</h1>

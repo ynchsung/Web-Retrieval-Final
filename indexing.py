@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 #  iindexing.py
@@ -7,7 +7,6 @@
 #
 
 import sys
-import codecs
 import string
 from nltk.stem.porter import *
 
@@ -75,7 +74,7 @@ class Collection:
         self.term_ids = dict()
         self.terms = []
         try:
-            f = codecs.open(self.dir_path + "/terms", "r", "utf-8")
+            f = open(self.dir_path + "/terms", "r")
             for line in f:
                 vals = line.split()
                 term = vals[0]
@@ -86,7 +85,7 @@ class Collection:
                 self.terms.append(index_term)
             f.close()
         except:
-            print "terms cannot be loaded"
+            print("terms cannot be loaded")
         self.new_term_id = len(self.terms)
 
     '''
@@ -96,7 +95,7 @@ class Collection:
         # load doc list
         doc_id = 0
         try:
-            f = codecs.open(self.dir_path + "/file-list", "r", "utf-8")
+            f = open(self.dir_path + "/file-list", "r")
             for line in f:
                 filename = line.strip()
                 if filename:
@@ -106,7 +105,7 @@ class Collection:
                     doc_id += 1
             f.close()
         except:
-            print "file-list cannot be loaded"
+            print("file-list cannot be loaded")
         self.new_doc_id = doc_id
 
         # load inverted file
@@ -121,9 +120,10 @@ class Collection:
                         self.terms[term_id].doc_ids.add(int(doc_id))
             f.close()
         except:
-            print "inverted-file cannot be loaded"
+            print("inverted-file cannot be loaded")
 
 
+        # build document vectors
         '''
         # load index and build document vectors
         term_id = 0
@@ -147,13 +147,13 @@ class Collection:
     '''
     def save(self):
         # write index terms
-        f = codecs.open(self.dir_path + "/terms", "w", "utf-8")
+        f = open(self.dir_path + "/terms", "w")
         for index_term in self.terms:
             f.write("%s %d %d\n" % (index_term.term, index_term.term_id, index_term.freq))
         f.close()
 
         # write doc list
-        f = codecs.open(self.dir_path + "/file-list", "w", "utf-8")
+        f = open(self.dir_path + "/file-list", "w")
         for doc in self.docs:
             f.write("%s\n" % (doc.filename))
         f.close()
@@ -206,6 +206,9 @@ class Collection:
     Add a new document to the collection
     '''
     def addDoc(self, filename):
+        # check for duplication
+        if filename in self.doc_ids:
+            return # the document is already in the collection
         new_id = self.new_doc_id
         doc = Doc(new_id, filename)
         self.docs.append(doc)
@@ -217,11 +220,11 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
-        f = codecs.open(doc.filename, "r", "utf-8")
+        f = open(doc.filename, "r")
         content = f.read()
         f.close()
 
-        word = u''
+        word = ''
         state = STATE_SKIP
         for ch in content:
             next_state = None
@@ -250,7 +253,7 @@ class Collection:
                 if next_state != STATE_SKIP:
                     word = ch
                 else:
-                    word = u''
+                    word = ''
             elif next_state != STATE_SKIP:
                 if next_state == STATE_CHI: # the last char and current char are all Chinese
                     term_id = self.addTerm(word, isEnglish = False) # unigram
@@ -275,7 +278,7 @@ class Collection:
         '''
         for term in sorted(self.terms):
             index_term = self.terms[term]
-            print index_term.term_id, term, index_term.freq
+            print(index_term.term_id, term, index_term.freq)
         '''
 
 

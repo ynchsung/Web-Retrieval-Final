@@ -25,9 +25,10 @@ class IndexTerm:
 Document
 '''
 class Doc:
-    def __init__(self, doc_id, filename):
+    def __init__(self, doc_id, filename, attachment = ''):
         self.doc_id = doc_id
         self.filename = filename
+        self.attachment = attachment
         self.terms = dict() # term vector of the document
 
     '''
@@ -205,12 +206,12 @@ class Collection:
     '''
     Add a new document to the collection
     '''
-    def addDoc(self, filename):
+    def addDoc(self, filename, attachment = ''):
         # check for duplication
         if filename in self.doc_ids:
             return # the document is already in the collection
         new_id = self.new_doc_id
-        doc = Doc(new_id, filename)
+        doc = Doc(new_id, filename, attachment)
         self.docs.append(doc)
         self.new_doc_id += 1
         self.indexDoc(doc)
@@ -286,8 +287,8 @@ def main():
     if len(sys.argv) < 2:
         return 1
     collection = Collection(".")
-    collection.addDoc(sys.argv[1])
-    collection.save()
+    # collection.addDoc(sys.argv[1])
+    # collection.save()
 
     return 0
 

@@ -6,6 +6,7 @@ from copy import deepcopy
 import tornado.ioloop
 import tornado.web
 from config import *
+from indexing import *
 
 bar_urls = {
     "View": {"active": False, "url": "/view"},
@@ -13,8 +14,13 @@ bar_urls = {
     "Search": {"active": False, "url": "/search"},
 }
 
-def add_new_record(path):
-    pass
+# FIXME: avoid using global variable here.
+collection = Collection(".")
+
+def add_new_record(wav_path):
+    # TODO: using speech recognition to generate a text document for the wav file.
+    text_path = '' # the text file
+    collection.addDoc(text_path, wav_path)
 
 class HomeHandler(tornado.web.RequestHandler):
     def get(self):

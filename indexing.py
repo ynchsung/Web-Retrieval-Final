@@ -145,7 +145,7 @@ class Collection:
         try:
             '''
             Format of the inverted-file:
-            <term_id> <doc1>:<tf1> <doc2>:<tf2> <doc3>:<tf3> ....
+            <term_id> <num_docs> <doc1>:<tf1> <doc2>:<tf2> <doc3>:<tf3> ....
             '''
             f = open(self.dir_path + "/inverted-file", "r")
             for line in f:
@@ -154,7 +154,7 @@ class Collection:
                     vals = line.split()
                     term_id = int(vals[0])
                     index_term = self.terms[term_id]
-                    items = vals[1:]
+                    items = vals[2:]
                     index_term.doc_freq = len(items) # DF of the index term
                     for item in items:
                         cols = item.split(':')
@@ -197,7 +197,7 @@ class Collection:
         # write inverted file
         f = open(self.dir_path + "/inverted-file", "w")
         for term in self.terms:
-            f.write("%d" % (term.term_id))
+            f.write("%d %d" % (term.term_id, len(term.doc_ids)))
             for doc_id in term.doc_ids:
                 doc = self.docs[doc_id]
                 f.write(" %d:%d" % (doc_id, doc.getTermFreq(term.term_id)))

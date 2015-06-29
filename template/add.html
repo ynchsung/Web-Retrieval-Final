@@ -2,7 +2,7 @@
 
 {% block content %}
     {% if retry %}
-    <script>alert("Adding fail!!");</script>
+    <div class="alert alert-danger" role="alert">Adding fail!!! Please retry.</div>
     {% end %}
     <div class="container">
         <div class="jumbotron profile">
@@ -12,7 +12,7 @@
             <div class="form-group">
                 <label class="col-sm-4 control-label">請輸入欲加入的錄音檔路徑</label>
                 <div class="col-sm-4">
-                    <input type="text" name="path" class="form-control" />
+                    <input type="file" class="file" name="path" multiple="true" />
                 </div>
                 <div class="col-sm-4">
                     <button type="submit" class="btn btn-success">Submit</button>

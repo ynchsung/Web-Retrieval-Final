@@ -8,6 +8,7 @@
 
 import sys
 import string
+import math
 from nltk.stem.porter import *
 
 '''
@@ -88,6 +89,7 @@ class Collection:
         # load from disk
         self.loadTerms()
         self.loadDocs()
+        self.updateIdf()
 
     '''
     Load the terms/vocabularies in the collection from disk
@@ -166,6 +168,15 @@ class Collection:
         except:
             print("inverted-file cannot be loaded")
 
+
+    '''
+    Update the inverted document frequency (IDF) values for each index term
+    after the number of documents in the collection is changed.
+    '''
+    def updateIdf(self):
+        n = len(self.docs)
+        for index_term in self.terms:
+            index_term.idf = math.log10(n / index_term.doc_freq)
 
     '''
     Write all index terms and docs to files.
@@ -301,6 +312,9 @@ class Collection:
             doc.setTermFreq(term_id, freq)
             index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
             index_term.doc_freq += 1 # update DF of the term
+
+        # re-calculate IDF for all terms since the collection is changed
+        self.updateIdf()
 
     '''
     Query for documents containing the @text

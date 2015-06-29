@@ -19,7 +19,7 @@ class IndexTerm:
         self.term = term
         self.freq = 0 # frequency of the term in the collection
         self.doc_ids = set() # doc ID list of documents containing this term
-
+        self.doc_freq = 0 # document frequency (for calculating IDF)
 
 '''
 Reader of *.srt files
@@ -110,6 +110,11 @@ class Collection:
         self.term_ids = dict()
         self.terms = []
         try:
+            '''
+            Format of the "terms" file:
+            each line contains:
+            <term_string> <term_id> <collection_freq>
+            '''
             f = open(self.dir_path + "/terms", "r")
             for line in f:
                 vals = line.split()
@@ -131,6 +136,10 @@ class Collection:
         # load doc list
         doc_id = 0
         try:
+            '''
+            Format of the file-list: each line contains a file path
+            the line nunmber is doc ID (zero-based)
+            '''
             f = open(self.dir_path + "/file-list", "r")
             for line in f:
                 filename = line.strip()
@@ -146,17 +155,24 @@ class Collection:
 
         # load inverted file
         try:
+            '''
+            Format of the inverted-file:
+            <term_id> <doc1>:<tf1> <doc2>:<tf2> <doc3>:<tf3> ....
+            '''
             f = open(self.dir_path + "/inverted-file", "r")
             for line in f:
                 line = line.strip()
                 if line:
                     vals = line.split()
                     term_id = int(vals[0])
-                    for item in vals[1:]:
+                    index_term = self.terms[term_id]
+                    items = vals[1:]
+                    index_term.doc_freq = len(items) # DF of the index term
+                    for item in items:
                         cols = item.split(':')
                         doc_id = int(cols[0])
                         freq = int(cols[1])
-                        self.terms[term_id].doc_ids.add(doc_id)
+                        index_term.doc_ids.add(doc_id)
                         # build document vector
                         doc = self.docs[doc_id]
                         doc.setTermFreq(term_id, freq)
@@ -234,6 +250,10 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
+        # FIXME:
+        # need to improve the way of indexing so we can update DF of the index term
+        # correctly after new documents are added.
+
         if doc.filename.endswith(".srt"): # *.srt subtitle file
             reader = SrtFileReader(doc.filename)
             content = reader.read()

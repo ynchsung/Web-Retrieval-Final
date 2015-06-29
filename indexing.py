@@ -57,17 +57,6 @@ class Doc:
         self.attachment = attachment
         self.terms = dict() # term vector of the document
 
-    '''
-    Increase the frequency of a term in the document's term vector by 1.
-    '''
-    def addTermId(self, term_id):
-        # FIXME: replace dict with a more efficient vector representation
-        # May use numpy array here?
-        if term_id in self.terms:
-            self.terms[term_id] += 1
-        else:
-            self.terms[term_id] = 1
-
     def setTermFreq(self, term_id, val):
         self.terms[term_id] = val
 
@@ -76,13 +65,6 @@ class Doc:
             return self.terms[term_id]
         return 0
 
-
-'''
-State constants used by the document indexing code
-'''
-STATE_SKIP = 1 # skip
-STATE_CHI = 2 # Chinese
-STATE_ENG = 3 # English
 
 '''
 The document collection of the search engine
@@ -209,30 +191,6 @@ class Collection:
 
 
     '''
-    Add a index term to the vocabularies and returns its term_id
-    If the term already exists, its frequency is increased by 1.
-    Otherwise, a new IndexTerm entry will be created for the term.
-    If @isEnglish is True, the term will be converted to lower case and
-    stemming will be performed.
-    '''
-    def addTerm(self, term, isEnglish = True):
-        if isEnglish:
-            term = self.stemmer.stem(term.lower())
-
-        index_term = None
-        if term in self.term_ids:
-            term_id = self.term_ids[term]
-            index_term = self.terms[term_id]
-            index_term.freq += 1
-        else:
-            index_term = IndexTerm(self.new_term_id, term)
-            self.new_term_id += 1
-            index_term.freq = 1
-            self.term_ids[term] = index_term.term_id
-            self.terms.append(index_term)
-        return index_term.term_id
-
-    '''
     Add a new document to the collection
     '''
     def addDoc(self, filename, attachment = ''):
@@ -245,22 +203,16 @@ class Collection:
         self.new_doc_id += 1
         self.indexDoc(doc)
 
-    '''
-    Index the specified document
-    @doc is a Doc object
-    '''
-    def indexDoc(self, doc):
-        # FIXME:
-        # need to improve the way of indexing so we can update DF of the index term
-        # correctly after new documents are added.
 
-        if doc.filename.endswith(".srt"): # *.srt subtitle file
-            reader = SrtFileReader(doc.filename)
-            content = reader.read()
-        else: # ordinary text file
-            f = open(doc.filename, "r")
-            content = f.read()
-            f.close()
+    '''
+    Segment text into a dict containing (term:frequency) pairs
+    '''
+    def tokenizeText(self, content):
+        STATE_SKIP = 1
+        STATE_ENG = 2 # Engligh
+        STATE_CHI = 3 # Chinese
+
+        terms = dict()
 
         word = ''
         state = STATE_SKIP
@@ -285,23 +237,19 @@ class Collection:
 
             if next_state != state: # state transition
                 if word:
-                    term_id = self.addTerm(word, isEnglish = True)
-                    doc.addTermId(term_id) # add the term to the vector of the doc
-                    self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
+                    if state == STATE_ENG:
+                        word = self.stemmer.stem(word.lower()) # stemming for English
+                    terms[word] = terms.get(word, 0) + 1
                 if next_state != STATE_SKIP:
                     word = ch
                 else:
                     word = ''
             elif next_state != STATE_SKIP:
                 if next_state == STATE_CHI: # the last char and current char are all Chinese
-                    term_id = self.addTerm(word, isEnglish = False) # unigram
-                    doc.addTermId(term_id)
-                    self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
+                    terms[word] = terms.get(word, 0) + 1 # unigram
 
                     word = word + ch # make it a bigram
-                    term_id = self.addTerm(word, isEnglish = False)
-                    doc.addTermId(term_id)
-                    self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
+                    terms[word] = terms.get(word, 0) + 1 # unigram
 
                     word = ch # make the next Chinese char unigram again
                 else: # English word
@@ -309,10 +257,48 @@ class Collection:
             state = next_state # update state
 
         if word:
-            term_id = self.addTerm(word, isEnglish = True)
-            doc.addTermId(term_id)
-            self.terms[term_id].doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
+            word = self.stemmer.stem(word.lower()) # stemming for English
+            terms[word] = terms.get(word, 0) + 1 # unigram
 
+        return terms
+
+
+    '''
+    Index the specified document
+    @doc is a Doc object
+    '''
+    def indexDoc(self, doc):
+        # FIXME:
+        # need to improve the way of indexing so we can update DF of the index term
+        # correctly after new documents are added.
+
+        if doc.filename.endswith(".srt"): # *.srt subtitle file
+            reader = SrtFileReader(doc.filename)
+            content = reader.read()
+        else: # ordinary text file
+            f = open(doc.filename, "r")
+            content = f.read()
+            f.close()
+            
+        terms = self.tokenizeText(content)
+        for term in terms:
+            freq = terms[term]
+            term_id = 0
+            index_term = None
+            if term in self.term_ids:
+                term_id = self.term_ids[term]
+                index_term = self.terms[term_id]
+                index_term.freq += freq
+            else:
+                term_id = self.new_term_id
+                index_term = IndexTerm(term_id, term)
+                self.new_term_id += 1
+                index_term.freq = freq
+                self.term_ids[term] = index_term.term_id
+                self.terms.append(index_term)
+
+            doc.setTermFreq(term_id, freq)
+            index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
 
 def main():
     if len(sys.argv) < 2:

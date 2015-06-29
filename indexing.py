@@ -65,6 +65,10 @@ class Doc:
             return self.terms[term_id]
         return 0
 
+    # FIXME: implement similarity calculation
+    def similarity(self, query_terms):
+        return 0.0
+
 
 '''
 The document collection of the search engine
@@ -268,9 +272,6 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
-        # FIXME:
-        # need to improve the way of indexing so we can update DF of the index term
-        # correctly after new documents are added.
 
         if doc.filename.endswith(".srt"): # *.srt subtitle file
             reader = SrtFileReader(doc.filename)
@@ -299,6 +300,27 @@ class Collection:
 
             doc.setTermFreq(term_id, freq)
             index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
+            index_term.doc_freq += 1 # update DF of the term
+
+    '''
+    Query for documents containing the @text
+    Returns a list of doc_ids sorted by ranking
+    '''
+    def query(self, text):
+        # convert query text to terms
+        doc_ids = set()
+        query_terms = dict()
+        for term in self.tokenizeText(text):
+            if term in self.term_ids: # only accept terms in the collection
+                term_id = self.term_ids[term]
+                query_terms[term_id] = query_terms.get(term_id, 0) + 1
+                doc_ids = doc_ids.union(self.terms[term_id].doc_ids)
+
+        # handle ranking sort by similarity
+        # FIXME: calculate TF*IDF for the vectors here.
+        return sorted(doc_ids, key = lambda doc_id: self.docs[doc_id].similarity(query_terms))
+
+
 
 def main():
     if len(sys.argv) < 2:
@@ -306,6 +328,7 @@ def main():
     collection = Collection(".")
     collection.addDoc(sys.argv[1])
     collection.save()
+    # print(collection.query("train"))
 
     return 0
 

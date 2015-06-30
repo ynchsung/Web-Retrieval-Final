@@ -340,7 +340,9 @@ def main():
     if len(sys.argv) < 2:
         return 1
     collection = Collection(".")
-    collection.addDoc(sys.argv[1])
+    for filename in sys.argv[1:]:
+        print("Indexing:", filename)
+        collection.addDoc(filename)
     collection.save()
     # print(collection.query("train"))
 

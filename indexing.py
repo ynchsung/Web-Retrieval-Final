@@ -66,10 +66,6 @@ class Doc:
             return self.terms[term_id]
         return 0
 
-    # FIXME: implement similarity calculation
-    def similarity(self, query_terms):
-        return 0.0
-
 
 '''
 The document collection of the search engine
@@ -317,6 +313,38 @@ class Collection:
         self.updateIdf()
 
     '''
+    Calculate the cosine similarity of two term vectors
+    @vec1 and @vec2 are sparse vectors containing term frequencies
+    represented with python dictionaries (term_id => freq).
+    '''
+    def similarity(self, vec1, vec2):
+        # FIXME: calculating TF*IDF everytime is slow
+        # we should cache the TF*IDF of every docs
+        w1 = dict()
+        norm1 = 0
+        for term_id in vec1:
+            v = vec1[term_id] * self.terms[term_id].idf
+            w1[term_id] = v
+            norm1 += v * v
+
+        w2 = dict()
+        norm2 = 0
+        for term_id in vec2:
+            v = vec2[term_id] * self.terms[term_id].idf
+            w2[term_id] = v
+            norm2 += v * v
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+
+        dot = 0
+        # cosine similarity of two vectors w1 and w2
+        for term_id in (set(w1.keys()) & set(w2.keys())):
+            dot += w1[term_id] * w2[term_id]
+        return dot / math.sqrt(norm1 * norm2)
+
+
+    '''
     Query for documents containing the @text
     Returns a list of doc_ids sorted by ranking
     '''
@@ -331,20 +359,23 @@ class Collection:
                 doc_ids = doc_ids.union(self.terms[term_id].doc_ids)
 
         # handle ranking sort by similarity
-        # FIXME: calculate TF*IDF for the vectors here.
-        return sorted(doc_ids, key = lambda doc_id: self.docs[doc_id].similarity(query_terms))
+        return sorted(doc_ids, key = lambda doc_id: self.similarity(self.docs[doc_id].terms, query_terms), reverse = True)
 
 
 
 def main():
-    if len(sys.argv) < 2:
-        return 1
     collection = Collection(".")
     for filename in sys.argv[1:]:
         print("Indexing:", filename)
         collection.addDoc(filename)
     collection.save()
-    # print(collection.query("train"))
+    '''
+    # Test query
+    i = 1
+    for doc_id in collection.query("programming"):
+        print(i, collection.docs[doc_id].filename)
+        i += 1
+    '''
 
     return 0
 

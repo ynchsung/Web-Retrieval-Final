@@ -149,18 +149,25 @@ class Collection:
         doc_id = 0
         try:
             '''
-            Format of the file-list: each line contains a file path
+            Format of the file-list: each line contains:
+            <file_path>\t<associated_url>
             the line nunmber is doc ID (zero-based)
+            <associated_url> is optional and can be empty
             If the filename is "?", that means, the document is already 
             deleted and we should set it to None.
             '''
             f = open(self.dir_path + "/file-list", "r", errors="ignore")
             for line in f:
-                filename = line.strip()
-                if filename:
+                line = line.strip()
+                if line:
                     doc = None
-                    if filename != "?": # the file is deleted if its name is "?"
-                        doc = Doc(doc_id, filename)
+                    if line != "?": # the file is deleted if its name is "?"
+                        parts = line.rsplit("\t", maxsplit = 1) # split filename and associated URL
+                        filename = parts[0]
+                        associated_url = ""
+                        if len(parts) > 1:
+                            associated_url = parts[1]
+                        doc = Doc(doc_id, filename, associated_url)
                         self.doc_ids[filename] = doc_id # map filename to doc ID
                     else:
                         self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
@@ -222,7 +229,7 @@ class Collection:
         f = open(self.dir_path + "/file-list", "w", errors="ignore")
         for doc in self.docs:
             if doc:
-                f.write("%s\n" % (doc.filename))
+                f.write("%s\t%s\n" % (doc.filename, doc.associated_url))
             else:
                 f.write("?\n") # the doc is already deleted, write "?" for its filename
         f.close()

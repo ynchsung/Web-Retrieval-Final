@@ -9,7 +9,9 @@
 import sys
 import string
 import math
+import subprocess
 from nltk.stem.porter import *
+# import cProfile
 
 '''
 Information of an index term
@@ -23,52 +25,60 @@ class IndexTerm:
         self.doc_freq = 0 # document frequency (for calculating IDF)
 
 '''
-Reader of *.srt files
+Read *.srt files
 '''
-class SrtFileReader:
-    def __init__(self, filename):
-        self.filename = filename
+def readSrtFile(filename):
+    state = 0
+    f = open(filename, "r")
+    lines = []
+    for line in f:
+        if state == 0: # skip No. of subtitle
+            state = 1
+        elif state == 1: # skip time
+            state = 2
+        else: # subtitle
+            line = line.strip()
+            if line:
+                lines.append(line)
+            else: # end of subtitle
+                state = 0
+    f.close()
+    return '\n'.join(lines)
 
-    def read(self):
-        state = 0
-        f = open(self.filename, "r")
-        lines = []
-        for line in f:
-            if state == 0: # skip No. of subtitle
-                state = 1
-            elif state == 1: # skip time
-                state = 2
-            else: # subtitle
-                line = line.strip()
-                if line:
-                    lines.append(line)
-                else: # end of subtitle
-                    state = 0
-        f.close()
-        return '\n'.join(lines)
+
+'''
+Read *.doc files
+This requires "catdoc" command
+'''
+def readDocFile(filename):
+    return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode("utf-8")
+
+
+'''
+Read *.ppt files
+This requires "catppt" command
+'''
+def readPptFile(filename):
+    return subprocess.check_output(["catppt", "-dutf-8", filename]).decode("utf-8")
+
+
+'''
+Read *.pdf files
+This requires "pdftotext" command (provided by poppler-utils)
+'''
+def readPdfFile(filename):
+    return subprocess.check_output(["pdftotext", filename, '-']).decode("utf-8")
 
 
 '''
 Document
 '''
 class Doc:
-    def __init__(self, doc_id, filename, attachment = ''):
+    def __init__(self, doc_id, filename, associated_url = ''):
         self.doc_id = doc_id
         self.filename = filename
-        self.attachment = attachment
-        self.terms = dict() # term vector of the document
-
-    def setTermFreq(self, term_id, val):
-        self.terms[term_id] = val
-
-    def getTermFreq(self, term_id):
-        if term_id in self.terms:
-            return self.terms[term_id]
-        return 0
-
-    # FIXME: implement similarity calculation
-    def similarity(self, query_terms):
-        return 0.0
+        self.associated_url = associated_url
+        self.terms = dict() # term vector of the document (key: term_id, value: term_freq)
 
 
 '''
@@ -83,6 +93,7 @@ class Collection:
         self.docs = [] # list of Doc objects
         self.doc_ids = dict() # map document names to doc IDs
         self.new_doc_id = 0
+        self.deleted_doc_ids = set() # set of doc_ids recycled from deleted files.
         self.new_term_id = 0
         self.stemmer = PorterStemmer()
 
@@ -127,14 +138,20 @@ class Collection:
             '''
             Format of the file-list: each line contains a file path
             the line nunmber is doc ID (zero-based)
+            If the filename is "?", that means, the document is already 
+            deleted and we should set it to None.
             '''
             f = open(self.dir_path + "/file-list", "r")
             for line in f:
                 filename = line.strip()
                 if filename:
-                    doc = Doc(doc_id, filename)
+                    doc = None
+                    if filename != "?": # the file is deleted if its name is "?"
+                        doc = Doc(doc_id, filename)
+                        self.doc_ids[filename] = doc_id # map filename to doc ID
+                    else:
+                        self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
                     self.docs.append(doc)
-                    self.doc_ids[filename] = doc_id # map filename to doc ID
                     doc_id += 1
             f.close()
         except:
@@ -163,7 +180,7 @@ class Collection:
                         index_term.doc_ids.add(doc_id)
                         # build document vector
                         doc = self.docs[doc_id]
-                        doc.setTermFreq(term_id, freq)
+                        doc.terms[term_id] = freq # set term frequency in the doc vector
             f.close()
         except:
             print("inverted-file cannot be loaded")
@@ -174,9 +191,9 @@ class Collection:
     after the number of documents in the collection is changed.
     '''
     def updateIdf(self):
-        n = len(self.docs)
+        n_docs = len(self.docs) - len(self.deleted_doc_ids) # since self.docs contains deleted files, we should not count them.
         for index_term in self.terms:
-            index_term.idf = math.log10(n / index_term.doc_freq)
+            index_term.idf = math.log10(n_docs / index_term.doc_freq)
 
     '''
     Write all index terms and docs to files.
@@ -191,7 +208,10 @@ class Collection:
         # write doc list
         f = open(self.dir_path + "/file-list", "w")
         for doc in self.docs:
-            f.write("%s\n" % (doc.filename))
+            if doc:
+                f.write("%s\n" % (doc.filename))
+            else:
+                f.write("?\n") # the doc is already deleted, write "?" for its filename
         f.close()
 
         # write inverted file
@@ -200,7 +220,7 @@ class Collection:
             f.write("%d %d" % (term.term_id, len(term.doc_ids)))
             for doc_id in term.doc_ids:
                 doc = self.docs[doc_id]
-                f.write(" %d:%d" % (doc_id, doc.getTermFreq(term.term_id)))
+                f.write(" %d:%d" % (doc_id, doc.terms[term.term_id]))
             f.write("\n")
         f.close()
 
@@ -208,15 +228,55 @@ class Collection:
     '''
     Add a new document to the collection
     '''
-    def addDoc(self, filename, attachment = ''):
+    def addDoc(self, filename, associated_url = ''):
         # check for duplication
         if filename in self.doc_ids:
             return # the document is already in the collection
-        new_id = self.new_doc_id
-        doc = Doc(new_id, filename, attachment)
+        if self.deleted_doc_ids: # see if we can reuse the doc ID of a deleted file.
+            new_id = self.deleted_doc_ids.pop()
+        else:
+            new_id = self.new_doc_id # generated a new doc ID
+            self.new_doc_id += 1
+        doc = Doc(new_id, filename, associated_url)
         self.docs.append(doc)
-        self.new_doc_id += 1
         self.indexDoc(doc)
+
+
+    '''
+    Remove an existing document from the collection
+    NOTE: simply removing the doc from the list will not work since
+        we have to re-assign new doc_ids to all docs after the doc_id and
+        this is very expensive. There needs to be a better way to do it.
+        So we allow some "holes" containing empty docs in the Doc object
+        list (self.docs).
+        1. Here we set the deleted entries to "None" rather than really
+          removing the items from the lists so we can keep the other doc ids
+          unchanged. However, to reclaim the wasted space, some garbage collection
+          mechanisms are needed in the future.
+        2. the doc_ids of the deleted files are collected in self.deleted_doc_ids
+          sets so the IDs can be reused for newly added documents later.
+        3. The real number of all documents in the collection is hence
+          len(self.docs) - len(self.deleted_doc_ids)
+    '''
+    def removeDoc(self, doc_id):
+        if doc_id >= len(self.docs):
+            return # no such document in the collection
+        self.doc_ids[doc_id] = None # remove from the filename list
+        # update term frequencies
+        doc = self.docs[doc_id]
+        for term_id in doc.terms:
+            freq = doc.terms[term_id] # freq of the term in the doc
+
+            index_term = self.terms[term_id] # get the IndexTerm object for the term
+            index_term.doc_ids.remove(doc_id) # remove the doc from the term
+            index_term.freq -= freq # frequency of the term in the collection
+            index_term.doc_freq -= 1 # number of docs containing the term
+
+        self.docs[doc_id] = None # remove the doc object
+        self.deleted_doc_ids.add(doc_id) # make the doc ID reusable
+
+        # re-calculate IDF for all terms since the collection is changed
+        self.updateIdf()
 
 
     '''
@@ -237,6 +297,8 @@ class Collection:
             if ch in string.whitespace: # skip white space
                 next_state = STATE_SKIP
             elif ch in string.punctuation: # skip English punctuations
+                next_state = STATE_SKIP
+            elif ch in string.digits: # skip digits
                 next_state = STATE_SKIP
             elif u >= 0x3000 and u <= 0x303f: # skip Chinese punctuations (http://www.unicode.org/reports/tr38/)
                 next_state = STATE_SKIP
@@ -283,15 +345,20 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
-
+        # FIXME: handle case insensitive filename matching here
         if doc.filename.endswith(".srt"): # *.srt subtitle file
-            reader = SrtFileReader(doc.filename)
-            content = reader.read()
+            content = readSrtFile(doc.filename)
+        elif doc.filename.endswith(".ppt") or doc.filename.endswith(".pptx"):
+            content = readPptFile(doc.filename)
+        elif doc.filename.endswith(".doc") or doc.filename.endswith(".docx"):
+            content = readDocFile(doc.filename)
+        elif doc.filename.endswith(".pdf"):
+            content = readPdfFile(doc.filename)
         else: # ordinary text file
             f = open(doc.filename, "r")
             content = f.read()
             f.close()
-            
+
         terms = self.tokenizeText(content)
         for term in terms:
             freq = terms[term]
@@ -309,12 +376,45 @@ class Collection:
                 self.term_ids[term] = index_term.term_id
                 self.terms.append(index_term)
 
-            doc.setTermFreq(term_id, freq)
+            doc.terms[term_id] = freq # set term frequency in the doc vector
+
             index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
             index_term.doc_freq += 1 # update DF of the term
 
         # re-calculate IDF for all terms since the collection is changed
         self.updateIdf()
+
+    '''
+    Calculate the cosine similarity of two term vectors
+    @vec1 and @vec2 are sparse vectors containing term frequencies
+    represented with python dictionaries (term_id => freq).
+    '''
+    def similarity(self, vec1, vec2):
+        # FIXME: calculating TF*IDF everytime is slow
+        # we should cache the TF*IDF of every docs
+        w1 = dict()
+        norm1 = 0
+        for term_id in vec1:
+            v = vec1[term_id] * self.terms[term_id].idf
+            w1[term_id] = v
+            norm1 += v * v
+
+        w2 = dict()
+        norm2 = 0
+        for term_id in vec2:
+            v = vec2[term_id] * self.terms[term_id].idf
+            w2[term_id] = v
+            norm2 += v * v
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+
+        dot = 0
+        # cosine similarity of two vectors w1 and w2
+        for term_id in (set(w1.keys()) & set(w2.keys())):
+            dot += w1[term_id] * w2[term_id]
+        return dot / math.sqrt(norm1 * norm2)
+
 
     '''
     Query for documents containing the @text
@@ -330,24 +430,27 @@ class Collection:
                 query_terms[term_id] = query_terms.get(term_id, 0) + 1
                 doc_ids = doc_ids.union(self.terms[term_id].doc_ids)
 
-        # handle ranking sort by similarity
-        # FIXME: calculate TF*IDF for the vectors here.
-        return sorted(doc_ids, key = lambda doc_id: self.docs[doc_id].similarity(query_terms))
+        # handle ranking sorted by similarity
+        return sorted(doc_ids, key = lambda doc_id: self.similarity(self.docs[doc_id].terms, query_terms), reverse = True)
 
 
 
 def main():
-    if len(sys.argv) < 2:
-        return 1
     collection = Collection(".")
     for filename in sys.argv[1:]:
         print("Indexing:", filename)
         collection.addDoc(filename)
-    collection.save()
-    # print(collection.query("train"))
+    #collection.save()
+
+    # Test query
+    i = 1
+    for doc_id in collection.query("programming"):
+        print(i, doc_id, collection.docs[doc_id].filename)
+        i += 1
 
     return 0
 
 if __name__ == '__main__':
+    # cProfile.run("main()")
     main()
 

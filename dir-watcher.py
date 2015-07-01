@@ -1,21 +1,28 @@
 #!/usr/bin/env python3
 #
 #  dir-watcher.py
-#  
+#
 #  Copyright 2015 PCMan <pcman.tw@gmail.com>
 #
 
 import sys
+import json
+import http.client
 from gi.repository import GLib, Gio # glib/gio
+
+def send_request(file_list, typ):
+    h = http.client.HTTPConnection('linux10.csie.org', 7122)
+    h.request(method="POST", url="/monitor?type=%s"%(typ,), body=json.dumps(file_list))
+    h.close()
 
 def file_changed(file_monitor, gf, other, event_type):
     file_path = gf.get_path()
     if event_type == Gio.FileMonitorEvent.CHANGED:
-        print(file_path, "changed")
+        send_request([file_path], "changed")
     elif event_type == Gio.FileMonitorEvent.DELETED:
-        print(file_path, "removed")
+        send_request([file_path], "removed")
     elif event_type == Gio.FileMonitorEvent.CREATED:
-        print(file_path, "added")
+        send_request([file_path], "added")
 
 
 def main():

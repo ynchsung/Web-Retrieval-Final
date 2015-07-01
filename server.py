@@ -90,12 +90,21 @@ class SearchHandler(tornado.web.RequestHandler):
         # query_record(query_word)
         self.write("POST: server get %s"%(query_word,))
 
+class MonitorHandler(tornado.web.RequestHandler):
+    def post(self):
+        typ = self.get_argument("type")
+        dat = self.request.body
+        print(dat, file=sys.stderr)
+        if typ == "changed":
+            pass
+
 if __name__ == "__main__":
     handler = [
         (r"/", HomeHandler),
         (r"/view", ViewHandler),
         (r"/add", AddHandler),
         (r"/search", SearchHandler),
+        (r"/monitor", MonitorHandler),
     ]
     script_path = os.path.realpath(os.path.dirname(__file__))
     settings = {

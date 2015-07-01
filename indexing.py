@@ -47,7 +47,7 @@ def readSrtFile(filename):
 
 '''
 Read *.doc files
-This requires "catdoc" commands
+This requires "catdoc" command
 '''
 def readDocFile(filename):
     return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode("utf-8")
@@ -55,10 +55,18 @@ def readDocFile(filename):
 
 '''
 Read *.ppt files
-This requires "catppt" commands
+This requires "catppt" command
 '''
 def readPptFile(filename):
     return subprocess.check_output(["catppt", "-dutf-8", filename]).decode("utf-8")
+
+
+'''
+Read *.pdf files
+This requires "pdftotext" command (provided by poppler-utils)
+'''
+def readPdfFile(filename):
+    return subprocess.check_output(["pdftotext", filename, '-']).decode("utf-8")
 
 
 '''
@@ -338,13 +346,15 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
-
+        # FIXME: handle case insensitive filename matching here
         if doc.filename.endswith(".srt"): # *.srt subtitle file
             content = readSrtFile(doc.filename)
         elif doc.filename.endswith(".ppt") or doc.filename.endswith(".pptx"):
             content = readPptFile(doc.filename)
         elif doc.filename.endswith(".doc") or doc.filename.endswith(".docx"):
             content = readDocFile(doc.filename)
+        elif doc.filename.endswith(".pdf"):
+            content = readPdfFile(doc.filename)
         else: # ordinary text file
             f = open(doc.filename, "r")
             content = f.read()

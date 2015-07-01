@@ -43,9 +43,6 @@ class IRTraining():
                 assert(spt[1] in label_table)
                 labels.append(label_table[spt[1]])
                 doc_size += 1
-        print(labels)
-        print("===")
-        print(self.label_inv)
 
         with open(v_file, "rt") as fp:
             for line in fp:

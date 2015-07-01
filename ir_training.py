@@ -3,7 +3,7 @@ import os
 import sys
 import math
 import numpy as np
-from scipy import sparse
+from scipy.sparse import csc_matrix
 from sklearn import ensemble
 
 class IRTraining():
@@ -12,18 +12,19 @@ class IRTraining():
         self.label_inv = []
 
     def training(self, label_file, flist_file, iv_file, v_file):
-        v_dict = {}
-        file_list = []
-        label_dict = {}
-        label_table = {}
-        labels = []
+        v_dict = {}             # vocabulary map: (string word, int vocab_id)
+        file_list = []          # file array: idx(file_id) -> string file_name
+        label_dict = {}         # label map: (string word, int label_id)
+        label_table = {}        # label map: (string dir_name, string word)
+        labels = []             # label list: idx(file_id) -> string word
+        self.label_inv[:] = []  # label inv_list: idx(label_id) -> string word
+
         row = []
         col = []
         data = []
         v_size = 0
         label_size = 0
         doc_size = 0
-        self.label_inv[:] = []
 
         with open(label_file, "rt") as fp:
             for line in fp:
@@ -42,6 +43,9 @@ class IRTraining():
                 assert(spt[1] in label_table)
                 labels.append(label_table[spt[1]])
                 doc_size += 1
+        print(labels)
+        print("===")
+        print(self.label_inv)
 
         with open(v_file, "rt") as fp:
             for line in fp:
@@ -50,8 +54,8 @@ class IRTraining():
                 v_dict[spt[0]] = v_size
                 v_size += 1
 
-        idx = 0
         with open(iv_file, "rt") as fp:
+            idx = 0
             for line in fp:
                 spt = line.rstrip("\n").split(" ")
                 assert(len(spt) >= 2 and int(spt[1]) + 2 == len(spt))
@@ -67,7 +71,8 @@ class IRTraining():
                 idx += 1
 
         print("Finish reading inverted file", file=sys.stderr)
-        csc_mat = sparse.csc_matrix((data, (np.array(row), np.array(col))), shape=(doc_size, v_size))
+        csc_mat = csc_matrix((data, (np.array(row), np.array(col))), \
+                                                    shape=(doc_size, v_size))
         self.rf.fit(csc_mat, labels)
         print("Finish fitting into RandomForest", file=sys.stderr)
 
@@ -77,4 +82,5 @@ class IRTraining():
 if __name__ == "__main__":
     test = IRTraining()
 
-    test.training("/tmp2/b02902083/file.label", "/tmp2/p03922004/file-list", "/tmp2/p03922004/inverted-file", "/tmp2/p03922004/terms")
+    test.training("/tmp2/b02902083/file.label", "/tmp2/p03922004/file-list", \
+                    "/tmp2/p03922004/inverted-file", "/tmp2/p03922004/terms")

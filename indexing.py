@@ -9,7 +9,9 @@
 import sys
 import string
 import math
+import subprocess
 from nltk.stem.porter import *
+# import cProfile
 
 '''
 Information of an index term
@@ -23,29 +25,49 @@ class IndexTerm:
         self.doc_freq = 0 # document frequency (for calculating IDF)
 
 '''
-Reader of *.srt files
+Read *.srt files
 '''
-class SrtFileReader:
-    def __init__(self, filename):
-        self.filename = filename
+def readSrtFile(filename):
+    state = 0
+    f = open(filename, "r")
+    lines = []
+    for line in f:
+        if state == 0: # skip No. of subtitle
+            state = 1
+        elif state == 1: # skip time
+            state = 2
+        else: # subtitle
+            line = line.strip()
+            if line:
+                lines.append(line)
+            else: # end of subtitle
+                state = 0
+    f.close()
+    return '\n'.join(lines)
 
-    def read(self):
-        state = 0
-        f = open(self.filename, "r")
-        lines = []
-        for line in f:
-            if state == 0: # skip No. of subtitle
-                state = 1
-            elif state == 1: # skip time
-                state = 2
-            else: # subtitle
-                line = line.strip()
-                if line:
-                    lines.append(line)
-                else: # end of subtitle
-                    state = 0
-        f.close()
-        return '\n'.join(lines)
+
+'''
+Read *.doc files
+This requires "catdoc" command
+'''
+def readDocFile(filename):
+    return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode("utf-8")
+
+
+'''
+Read *.ppt files
+This requires "catppt" command
+'''
+def readPptFile(filename):
+    return subprocess.check_output(["catppt", "-dutf-8", filename]).decode("utf-8")
+
+
+'''
+Read *.pdf files
+This requires "pdftotext" command (provided by poppler-utils)
+'''
+def readPdfFile(filename):
+    return subprocess.check_output(["pdftotext", filename, '-']).decode("utf-8")
 
 
 '''
@@ -56,15 +78,7 @@ class Doc:
         self.doc_id = doc_id
         self.filename = filename
         self.associated_url = associated_url
-        self.terms = dict() # term vector of the document
-
-    def setTermFreq(self, term_id, val):
-        self.terms[term_id] = val
-
-    def getTermFreq(self, term_id):
-        if term_id in self.terms:
-            return self.terms[term_id]
-        return 0
+        self.terms = dict() # term vector of the document (key: term_id, value: term_freq)
 
 
 '''
@@ -79,6 +93,7 @@ class Collection:
         self.docs = [] # list of Doc objects
         self.doc_ids = dict() # map document names to doc IDs
         self.new_doc_id = 0
+        self.deleted_doc_ids = set() # set of doc_ids recycled from deleted files.
         self.new_term_id = 0
         self.stemmer = PorterStemmer()
 
@@ -134,6 +149,8 @@ class Collection:
                     if filename != "?": # the file is deleted if its name is "?"
                         doc = Doc(doc_id, filename)
                         self.doc_ids[filename] = doc_id # map filename to doc ID
+                    else:
+                        self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
                     self.docs.append(doc)
                     doc_id += 1
             f.close()
@@ -163,7 +180,7 @@ class Collection:
                         index_term.doc_ids.add(doc_id)
                         # build document vector
                         doc = self.docs[doc_id]
-                        doc.setTermFreq(term_id, freq)
+                        doc.terms[term_id] = freq # set term frequency in the doc vector
             f.close()
         except:
             print("inverted-file cannot be loaded")
@@ -174,9 +191,9 @@ class Collection:
     after the number of documents in the collection is changed.
     '''
     def updateIdf(self):
-        n = len(self.docs)
+        n_docs = len(self.docs) - len(self.deleted_doc_ids) # since self.docs contains deleted files, we should not count them.
         for index_term in self.terms:
-            index_term.idf = math.log10(n / index_term.doc_freq)
+            index_term.idf = math.log10(n_docs / index_term.doc_freq)
 
     '''
     Write all index terms and docs to files.
@@ -203,7 +220,7 @@ class Collection:
             f.write("%d %d" % (term.term_id, len(term.doc_ids)))
             for doc_id in term.doc_ids:
                 doc = self.docs[doc_id]
-                f.write(" %d:%d" % (doc_id, doc.getTermFreq(term.term_id)))
+                f.write(" %d:%d" % (doc_id, doc.terms[term.term_id]))
             f.write("\n")
         f.close()
 
@@ -215,29 +232,31 @@ class Collection:
         # check for duplication
         if filename in self.doc_ids:
             return # the document is already in the collection
-        new_id = self.new_doc_id
+        if self.deleted_doc_ids: # see if we can reuse the doc ID of a deleted file.
+            new_id = self.deleted_doc_ids.pop()
+        else:
+            new_id = self.new_doc_id # generated a new doc ID
+            self.new_doc_id += 1
         doc = Doc(new_id, filename, associated_url)
         self.docs.append(doc)
-        self.new_doc_id += 1
         self.indexDoc(doc)
 
 
     '''
     Remove an existing document from the collection
-    FIXME: simply removing the doc from the list will not work since
-            we have to re-assign new doc_ids to all docs after the doc_id and
-            this is very expensive. There needs to be a better way to do it.
-            Maybe we need to allow some "holes" containing empty docs in
-            the Doc object list (self.docs) and do garbage collection
-            periodically.
-    NOTE:
+    NOTE: simply removing the doc from the list will not work since
+        we have to re-assign new doc_ids to all docs after the doc_id and
+        this is very expensive. There needs to be a better way to do it.
+        So we allow some "holes" containing empty docs in the Doc object
+        list (self.docs).
         1. Here we set the deleted entries to "None" rather than really
           removing the items from the lists so we can keep the other doc ids
           unchanged. However, to reclaim the wasted space, some garbage collection
           mechanisms are needed in the future.
-        2. Calculation of IDF can be inaccurate since len(self.docs) is no
-          longer the real number of docs in the collection, but this should
-          not affect ranking.
+        2. the doc_ids of the deleted files are collected in self.deleted_doc_ids
+          sets so the IDs can be reused for newly added documents later.
+        3. The real number of all documents in the collection is hence
+          len(self.docs) - len(self.deleted_doc_ids)
     '''
     def removeDoc(self, doc_id):
         if doc_id >= len(self.docs):
@@ -254,6 +273,7 @@ class Collection:
             index_term.doc_freq -= 1 # number of docs containing the term
 
         self.docs[doc_id] = None # remove the doc object
+        self.deleted_doc_ids.add(doc_id) # make the doc ID reusable
 
         # re-calculate IDF for all terms since the collection is changed
         self.updateIdf()
@@ -277,6 +297,8 @@ class Collection:
             if ch in string.whitespace: # skip white space
                 next_state = STATE_SKIP
             elif ch in string.punctuation: # skip English punctuations
+                next_state = STATE_SKIP
+            elif ch in string.digits: # skip digits
                 next_state = STATE_SKIP
             elif u >= 0x3000 and u <= 0x303f: # skip Chinese punctuations (http://www.unicode.org/reports/tr38/)
                 next_state = STATE_SKIP
@@ -323,10 +345,15 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
-
+        # FIXME: handle case insensitive filename matching here
         if doc.filename.endswith(".srt"): # *.srt subtitle file
-            reader = SrtFileReader(doc.filename)
-            content = reader.read()
+            content = readSrtFile(doc.filename)
+        elif doc.filename.endswith(".ppt") or doc.filename.endswith(".pptx"):
+            content = readPptFile(doc.filename)
+        elif doc.filename.endswith(".doc") or doc.filename.endswith(".docx"):
+            content = readDocFile(doc.filename)
+        elif doc.filename.endswith(".pdf"):
+            content = readPdfFile(doc.filename)
         else: # ordinary text file
             f = open(doc.filename, "r")
             content = f.read()
@@ -349,7 +376,8 @@ class Collection:
                 self.term_ids[term] = index_term.term_id
                 self.terms.append(index_term)
 
-            doc.setTermFreq(term_id, freq)
+            doc.terms[term_id] = freq # set term frequency in the doc vector
+
             index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
             index_term.doc_freq += 1 # update DF of the term
 
@@ -423,5 +451,6 @@ def main():
     return 0
 
 if __name__ == '__main__':
+    # cProfile.run("main()")
     main()
 

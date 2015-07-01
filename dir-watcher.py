@@ -15,14 +15,42 @@ def send_request(file_list, typ):
     h.request(method="POST", url="/monitor?type=%s"%(typ,), body=json.dumps(file_list))
     h.close()
 
+# queued file changes
+files_to_add = []
+files_to_change = []
+files_to_remove = []
+
+timeout_id = 0 # timeout handler
+
+# called when timeout
+def handle_queued_changes():
+    global files_to_add, files_to_change, files_to_remove, timeout_id
+    timeout_id = 0
+
+    if files_to_add:
+        send_request(files_to_add, "added")
+        files_to_add = []
+    if files_to_remove:
+        send_request(files_to_remove, "removed")
+        files_to_remove = []
+    if files_to_change:
+        send_request(files_to_change, "changed")
+        files_to_change = []
+    return False
+
+
 def file_changed(file_monitor, gf, other, event_type):
+    if timeout_id == 0: # timeout handler is not installed
+        GLib.timeout_add(3000, handle_queued_changes) # delay for 3 seconds
+
     file_path = gf.get_path()
     if event_type == Gio.FileMonitorEvent.CHANGED:
-        send_request([file_path], "changed")
+        if file_path not in files_to_change: # avoid frequent changes of the same file
+            files_to_change.append(file_path)
     elif event_type == Gio.FileMonitorEvent.DELETED:
-        send_request([file_path], "removed")
+        files_to_remove.append(file_path)
     elif event_type == Gio.FileMonitorEvent.CREATED:
-        send_request([file_path], "added")
+        files_to_add.append(file_path)
 
 
 def main():

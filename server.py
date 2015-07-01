@@ -23,6 +23,7 @@ def add_new_record(wav_path):
     # TODO: using speech recognition to generate a text document for the wav file.
     text_path = '' # the text file
     collection.addDoc(text_path, wav_path)
+    collection.updateIdf()
 
 class HomeHandler(tornado.web.RequestHandler):
     def get(self):

@@ -29,7 +29,7 @@ Read *.srt files
 '''
 def readSrtFile(filename):
     state = 0
-    f = open(filename, "r")
+    f = open(filename, "r", errors="ignore")
     lines = []
     for line in f:
         if state == 0: # skip No. of subtitle
@@ -51,7 +51,11 @@ Read *.doc files
 This requires "catdoc" command
 '''
 def readDocFile(filename):
-    return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode("utf-8")
+    try:
+        return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode(encoding="utf-8", errors="ignore")
+    except:
+        print("error reading doc file", filename)
+    return ''
 
 
 '''
@@ -59,7 +63,11 @@ Read *.ppt files
 This requires "catppt" command
 '''
 def readPptFile(filename):
-    return subprocess.check_output(["catppt", "-dutf-8", filename]).decode("utf-8")
+    try:
+        return subprocess.check_output(["catppt", "-dutf-8", filename]).decode(encoding="utf-8", errors="ignore")
+    except:
+        print("error reading ppt file", filename)
+    return ''
 
 
 '''
@@ -67,7 +75,12 @@ Read *.pdf files
 This requires "pdftotext" command (provided by poppler-utils)
 '''
 def readPdfFile(filename):
-    return subprocess.check_output(["pdftotext", filename, '-']).decode("utf-8")
+    try:
+        return subprocess.check_output(["pdftotext", filename, '-']).decode(encoding="utf-8", errors="ignore")
+    except:
+        print("error reading pdf file", filename)
+    return ''
+
 
 
 '''
@@ -114,9 +127,9 @@ class Collection:
             each line contains:
             <term_string> <term_id> <collection_freq>
             '''
-            f = open(self.dir_path + "/terms", "r")
+            f = open(self.dir_path + "/terms", "r", errors="ignore")
             for line in f:
-                vals = line.split()
+                vals = line.split(" ")
                 term = vals[0]
                 term_id = int(vals[1])
                 index_term = IndexTerm(term_id, term)
@@ -125,7 +138,7 @@ class Collection:
                 self.terms.append(index_term)
             f.close()
         except:
-            print("terms cannot be loaded")
+            print("terms cannot be loaded", sys.exc_info())
         self.new_term_id = len(self.terms)
 
     '''
@@ -141,7 +154,7 @@ class Collection:
             If the filename is "?", that means, the document is already 
             deleted and we should set it to None.
             '''
-            f = open(self.dir_path + "/file-list", "r")
+            f = open(self.dir_path + "/file-list", "r", errors="ignore")
             for line in f:
                 filename = line.strip()
                 if filename:
@@ -155,7 +168,7 @@ class Collection:
                     doc_id += 1
             f.close()
         except:
-            print("file-list cannot be loaded")
+            print("file-list cannot be loaded", sys.exc_info())
         self.new_doc_id = doc_id
 
         # load inverted file
@@ -164,11 +177,11 @@ class Collection:
             Format of the inverted-file:
             <term_id> <num_docs> <doc1>:<tf1> <doc2>:<tf2> <doc3>:<tf3> ....
             '''
-            f = open(self.dir_path + "/inverted-file", "r")
+            f = open(self.dir_path + "/inverted-file", "r", errors="ignore")
             for line in f:
                 line = line.strip()
                 if line:
-                    vals = line.split()
+                    vals = line.split(" ")
                     term_id = int(vals[0])
                     index_term = self.terms[term_id]
                     items = vals[2:]
@@ -183,7 +196,7 @@ class Collection:
                         doc.terms[term_id] = freq # set term frequency in the doc vector
             f.close()
         except:
-            print("inverted-file cannot be loaded")
+            print("inverted-file cannot be loaded", sys.exc_info())
 
 
     '''
@@ -200,13 +213,13 @@ class Collection:
     '''
     def save(self):
         # write index terms
-        f = open(self.dir_path + "/terms", "w")
+        f = open(self.dir_path + "/terms", "w", errors="ignore")
         for index_term in self.terms:
             f.write("%s %d %d\n" % (index_term.term, index_term.term_id, index_term.freq))
         f.close()
 
         # write doc list
-        f = open(self.dir_path + "/file-list", "w")
+        f = open(self.dir_path + "/file-list", "w", errors="ignore")
         for doc in self.docs:
             if doc:
                 f.write("%s\n" % (doc.filename))
@@ -215,7 +228,7 @@ class Collection:
         f.close()
 
         # write inverted file
-        f = open(self.dir_path + "/inverted-file", "w")
+        f = open(self.dir_path + "/inverted-file", "w", errors="ignore")
         for term in self.terms:
             f.write("%d %d" % (term.term_id, len(term.doc_ids)))
             for doc_id in term.doc_ids:
@@ -227,6 +240,7 @@ class Collection:
 
     '''
     Add a new document to the collection
+    After calling addDoc(), call updateIdf() to re-calculate IDF for terms.
     '''
     def addDoc(self, filename, associated_url = ''):
         # check for duplication
@@ -244,6 +258,8 @@ class Collection:
 
     '''
     Remove an existing document from the collection
+    After calling removeDoc(), call updateIdf() to re-calculate IDF for terms.
+
     NOTE: simply removing the doc from the list will not work since
         we have to re-assign new doc_ids to all docs after the doc_id and
         this is very expensive. There needs to be a better way to do it.
@@ -274,9 +290,6 @@ class Collection:
 
         self.docs[doc_id] = None # remove the doc object
         self.deleted_doc_ids.add(doc_id) # make the doc ID reusable
-
-        # re-calculate IDF for all terms since the collection is changed
-        self.updateIdf()
 
 
     '''
@@ -381,8 +394,6 @@ class Collection:
             index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
             index_term.doc_freq += 1 # update DF of the term
 
-        # re-calculate IDF for all terms since the collection is changed
-        self.updateIdf()
 
     '''
     Calculate the cosine similarity of two term vectors
@@ -440,7 +451,12 @@ def main():
     for filename in sys.argv[1:]:
         print("Indexing:", filename)
         collection.addDoc(filename)
-    #collection.save()
+
+    # re-calculate IDF for all terms since the collection is changed
+    collection.updateIdf()
+
+    # write the changed index to disk
+    # collection.save()
 
     # Test query
     i = 1

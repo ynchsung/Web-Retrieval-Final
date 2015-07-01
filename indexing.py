@@ -52,10 +52,10 @@ class SrtFileReader:
 Document
 '''
 class Doc:
-    def __init__(self, doc_id, filename, attachment = ''):
+    def __init__(self, doc_id, filename, associated_url = ''):
         self.doc_id = doc_id
         self.filename = filename
-        self.attachment = attachment
+        self.associated_url = associated_url
         self.terms = dict() # term vector of the document
 
     def setTermFreq(self, term_id, val):
@@ -123,14 +123,18 @@ class Collection:
             '''
             Format of the file-list: each line contains a file path
             the line nunmber is doc ID (zero-based)
+            If the filename is "?", that means, the document is already 
+            deleted and we should set it to None.
             '''
             f = open(self.dir_path + "/file-list", "r")
             for line in f:
                 filename = line.strip()
                 if filename:
-                    doc = Doc(doc_id, filename)
+                    doc = None
+                    if filename != "?": # the file is deleted if its name is "?"
+                        doc = Doc(doc_id, filename)
+                        self.doc_ids[filename] = doc_id # map filename to doc ID
                     self.docs.append(doc)
-                    self.doc_ids[filename] = doc_id # map filename to doc ID
                     doc_id += 1
             f.close()
         except:
@@ -187,7 +191,10 @@ class Collection:
         # write doc list
         f = open(self.dir_path + "/file-list", "w")
         for doc in self.docs:
-            f.write("%s\n" % (doc.filename))
+            if doc:
+                f.write("%s\n" % (doc.filename))
+            else:
+                f.write("?\n") # the doc is already deleted, write "?" for its filename
         f.close()
 
         # write inverted file
@@ -204,15 +211,52 @@ class Collection:
     '''
     Add a new document to the collection
     '''
-    def addDoc(self, filename, attachment = ''):
+    def addDoc(self, filename, associated_url = ''):
         # check for duplication
         if filename in self.doc_ids:
             return # the document is already in the collection
         new_id = self.new_doc_id
-        doc = Doc(new_id, filename, attachment)
+        doc = Doc(new_id, filename, associated_url)
         self.docs.append(doc)
         self.new_doc_id += 1
         self.indexDoc(doc)
+
+
+    '''
+    Remove an existing document from the collection
+    FIXME: simply removing the doc from the list will not work since
+            we have to re-assign new doc_ids to all docs after the doc_id and
+            this is very expensive. There needs to be a better way to do it.
+            Maybe we need to allow some "holes" containing empty docs in
+            the Doc object list (self.docs) and do garbage collection
+            periodically.
+    NOTE:
+        1. Here we set the deleted entries to "None" rather than really
+          removing the items from the lists so we can keep the other doc ids
+          unchanged. However, to reclaim the wasted space, some garbage collection
+          mechanisms are needed in the future.
+        2. Calculation of IDF can be inaccurate since len(self.docs) is no
+          longer the real number of docs in the collection, but this should
+          not affect ranking.
+    '''
+    def removeDoc(self, doc_id):
+        if doc_id >= len(self.docs):
+            return # no such document in the collection
+        self.doc_ids[doc_id] = None # remove from the filename list
+        # update term frequencies
+        doc = self.docs[doc_id]
+        for term_id in doc.terms:
+            freq = doc.terms[term_id] # freq of the term in the doc
+
+            index_term = self.terms[term_id] # get the IndexTerm object for the term
+            index_term.doc_ids.remove(doc_id) # remove the doc from the term
+            index_term.freq -= freq # frequency of the term in the collection
+            index_term.doc_freq -= 1 # number of docs containing the term
+
+        self.docs[doc_id] = None # remove the doc object
+
+        # re-calculate IDF for all terms since the collection is changed
+        self.updateIdf()
 
 
     '''
@@ -287,7 +331,7 @@ class Collection:
             f = open(doc.filename, "r")
             content = f.read()
             f.close()
-            
+
         terms = self.tokenizeText(content)
         for term in terms:
             freq = terms[term]
@@ -358,7 +402,7 @@ class Collection:
                 query_terms[term_id] = query_terms.get(term_id, 0) + 1
                 doc_ids = doc_ids.union(self.terms[term_id].doc_ids)
 
-        # handle ranking sort by similarity
+        # handle ranking sorted by similarity
         return sorted(doc_ids, key = lambda doc_id: self.similarity(self.docs[doc_id].terms, query_terms), reverse = True)
 
 
@@ -368,14 +412,13 @@ def main():
     for filename in sys.argv[1:]:
         print("Indexing:", filename)
         collection.addDoc(filename)
-    collection.save()
-    '''
+    #collection.save()
+
     # Test query
     i = 1
     for doc_id in collection.query("programming"):
-        print(i, collection.docs[doc_id].filename)
+        print(i, doc_id, collection.docs[doc_id].filename)
         i += 1
-    '''
 
     return 0
 

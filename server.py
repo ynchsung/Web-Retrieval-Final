@@ -11,7 +11,6 @@ from ir_training import *
 
 bar_urls = {
     "View": {"active": False, "url": "/view"},
-    "Add": {"active": False, "url": "/add"},
     "Search": {"active": False, "url": "/search"},
 }
 
@@ -19,10 +18,9 @@ bar_urls = {
 collection = Collection(".")
 ir_rfmodel = IRTraining()
 
-def add_new_record(wav_path):
-    # TODO: using speech recognition to generate a text document for the wav file.
+def add_new_file(nfile_path):
     text_path = '' # the text file
-    collection.addDoc(text_path, wav_path)
+    collection.addDoc(text_path, nfile_path)
     collection.updateIdf()
 
 class HomeHandler(tornado.web.RequestHandler):
@@ -71,12 +69,8 @@ class AddHandler(tornado.web.RequestHandler):
 
     def post(self):
         path = self.get_argument("path")
-        # TODO:
-        # add_new_record(path)
-        # if success:
+        add_new_file(path)
         self.redirect("/view?success")
-        # else:
-        # self.redirect("/add?retry")
 
 class SearchHandler(tornado.web.RequestHandler):
     def get(self):
@@ -86,8 +80,7 @@ class SearchHandler(tornado.web.RequestHandler):
 
     def post(self):
         query_word = self.get_argument("query")
-        # TODO:
-        # query_record(query_word)
+        collection.query(query_word)
         self.write("POST: server get %s"%(query_word,))
 
 class MonitorHandler(tornado.web.RequestHandler):
@@ -97,8 +90,16 @@ class MonitorHandler(tornado.web.RequestHandler):
         print(dat, file=sys.stderr)
         if typ == "changed":
             pass
+        elif typ == "removed":
+            pass
+        elif typ == "added":
+            pass
 
 if __name__ == "__main__":
+    if len(sys.argv) < 5:
+        print("Usage: ./server.py [label_file] [file_list_file] [inverted_file] [vocabulary_file]", file=sys.stderr)
+        sys.exit(1)
+
     handler = [
         (r"/", HomeHandler),
         (r"/view", ViewHandler),
@@ -111,6 +112,7 @@ if __name__ == "__main__":
         'static_path': os.path.join(script_path, 'static'),
         'template_path': os.path.join(script_path, 'template'),
     }
+    # ir_rfmodel.training(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
     ir_server = tornado.web.Application(handler, **settings)
     ir_server.listen(port)
     tornado.ioloop.IOLoop.current().start()

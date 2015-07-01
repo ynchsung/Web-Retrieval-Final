@@ -298,8 +298,8 @@ class Collection:
                 next_state = STATE_SKIP
             elif ch in string.punctuation: # skip English punctuations
                 next_state = STATE_SKIP
-            # elif ch in string.digits: # skip digits
-            #     next_state = STATE_SKIP
+            elif ch in string.digits: # skip digits
+                next_state = STATE_SKIP
             elif u >= 0x3000 and u <= 0x303f: # skip Chinese punctuations (http://www.unicode.org/reports/tr38/)
                 next_state = STATE_SKIP
             # http://www.utf8-chartable.de/unicode-utf8-table.pl?start=65280&number=256

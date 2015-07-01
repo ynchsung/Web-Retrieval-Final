@@ -9,6 +9,7 @@
 import sys
 import string
 import math
+import subprocess
 from nltk.stem.porter import *
 
 '''
@@ -23,29 +24,41 @@ class IndexTerm:
         self.doc_freq = 0 # document frequency (for calculating IDF)
 
 '''
-Reader of *.srt files
+Read *.srt files
 '''
-class SrtFileReader:
-    def __init__(self, filename):
-        self.filename = filename
+def readSrtFile(filename):
+    state = 0
+    f = open(filename, "r")
+    lines = []
+    for line in f:
+        if state == 0: # skip No. of subtitle
+            state = 1
+        elif state == 1: # skip time
+            state = 2
+        else: # subtitle
+            line = line.strip()
+            if line:
+                lines.append(line)
+            else: # end of subtitle
+                state = 0
+    f.close()
+    return '\n'.join(lines)
 
-    def read(self):
-        state = 0
-        f = open(self.filename, "r")
-        lines = []
-        for line in f:
-            if state == 0: # skip No. of subtitle
-                state = 1
-            elif state == 1: # skip time
-                state = 2
-            else: # subtitle
-                line = line.strip()
-                if line:
-                    lines.append(line)
-                else: # end of subtitle
-                    state = 0
-        f.close()
-        return '\n'.join(lines)
+
+'''
+Read *.doc files
+This requires "catdoc" commands
+'''
+def readDocFile(filename):
+    return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode("utf-8")
+
+
+'''
+Read *.ppt files
+This requires "catppt" commands
+'''
+def readPptFile(filename):
+    return subprocess.check_output(["catppt", "-dutf-8", filename]).decode("utf-8")
 
 
 '''
@@ -278,6 +291,8 @@ class Collection:
                 next_state = STATE_SKIP
             elif ch in string.punctuation: # skip English punctuations
                 next_state = STATE_SKIP
+            # elif ch in string.digits: # skip digits
+            #     next_state = STATE_SKIP
             elif u >= 0x3000 and u <= 0x303f: # skip Chinese punctuations (http://www.unicode.org/reports/tr38/)
                 next_state = STATE_SKIP
             # http://www.utf8-chartable.de/unicode-utf8-table.pl?start=65280&number=256
@@ -325,8 +340,11 @@ class Collection:
     def indexDoc(self, doc):
 
         if doc.filename.endswith(".srt"): # *.srt subtitle file
-            reader = SrtFileReader(doc.filename)
-            content = reader.read()
+            content = readSrtFile(doc.filename)
+        elif doc.filename.endswith(".ppt") or doc.filename.endswith(".pptx"):
+            content = readPptFile(doc.filename)
+        elif doc.filename.endswith(".doc") or doc.filename.endswith(".docx"):
+            content = readDocFile(doc.filename)
         else: # ordinary text file
             f = open(doc.filename, "r")
             content = f.read()

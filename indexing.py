@@ -11,6 +11,7 @@ import string
 import math
 import subprocess
 from nltk.stem.porter import *
+# import cProfile
 
 '''
 Information of an index term
@@ -77,15 +78,7 @@ class Doc:
         self.doc_id = doc_id
         self.filename = filename
         self.associated_url = associated_url
-        self.terms = dict() # term vector of the document
-
-    def setTermFreq(self, term_id, val):
-        self.terms[term_id] = val
-
-    def getTermFreq(self, term_id):
-        if term_id in self.terms:
-            return self.terms[term_id]
-        return 0
+        self.terms = dict() # term vector of the document (key: term_id, value: term_freq)
 
 
 '''
@@ -187,7 +180,7 @@ class Collection:
                         index_term.doc_ids.add(doc_id)
                         # build document vector
                         doc = self.docs[doc_id]
-                        doc.setTermFreq(term_id, freq)
+                        doc.terms[term_id] = freq # set term frequency in the doc vector
             f.close()
         except:
             print("inverted-file cannot be loaded")
@@ -227,7 +220,7 @@ class Collection:
             f.write("%d %d" % (term.term_id, len(term.doc_ids)))
             for doc_id in term.doc_ids:
                 doc = self.docs[doc_id]
-                f.write(" %d:%d" % (doc_id, doc.getTermFreq(term.term_id)))
+                f.write(" %d:%d" % (doc_id, doc.terms[term.term_id]))
             f.write("\n")
         f.close()
 
@@ -383,7 +376,8 @@ class Collection:
                 self.term_ids[term] = index_term.term_id
                 self.terms.append(index_term)
 
-            doc.setTermFreq(term_id, freq)
+            doc.terms[term_id] = freq # set term frequency in the doc vector
+
             index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
             index_term.doc_freq += 1 # update DF of the term
 
@@ -457,5 +451,6 @@ def main():
     return 0
 
 if __name__ == '__main__':
+    # cProfile.run("main()")
     main()
 

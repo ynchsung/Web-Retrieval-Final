@@ -4,6 +4,7 @@ import sys
 import math
 import numpy as np
 from scipy.sparse import csc_matrix
+from scipy.sparse import csr_matrix
 from sklearn import ensemble
 
 class IRTraining():
@@ -11,6 +12,7 @@ class IRTraining():
         self.rf = ensemble.RandomForestClassifier()
         self.v_dict = {}        # vocabulary map: (string word, int vocab_id)
         self.v_list = []        # v_id -> string vocabulary
+        self.v_idf = []
 
         self.file_dict = {}     # file map: (string file_name, file_id for file_list)
         self.file_list = []     # file_id -> (path, url, label)
@@ -57,6 +59,7 @@ class IRTraining():
                 assert(len(spt) == 3 and not spt[0] in self.v_dict)
                 self.v_dict[spt[0]] = v_size
                 self.v_list.append(spt[0])
+                self.v_idf.append(0.0)
                 v_size += 1
 
         with open(iv_file, "rt") as fp:
@@ -65,6 +68,7 @@ class IRTraining():
                 spt = line.rstrip("\n").split(" ")
                 assert(len(spt) >= 2 and int(spt[1]) + 2 == len(spt))
                 idf = math.log(doc_size / float(spt[1]), 10)
+                self.v_idf[int(spt[0])] = idf
                 for i in range(int(spt[1])):
                     t = spt[i + 2]
                     sp = t.split(":")
@@ -89,8 +93,22 @@ class IRTraining():
         self.rf.fit(csc_mat, labels)
         print("Finish fitting into RandomForest", file=sys.stderr)
 
-    def predict(self, vec):
-        return self.label_to_str[self.rf.predict(vec)[0]]
+    def predict(self, vec_dict):
+        v_size = len(self.v_list)
+        doc_size = len(self.file_list)
+        row = []
+        col = []
+        data = []
+        for x, y in vec_dict.items():
+            if x >= v_size:
+                continue
+            row.append(0)
+            col.append(x)
+            data.append(float(y) * self.v_idf[x])
+
+        csr_mat = csr_matrix((data, (np.array(row), np.array(col))), \
+                                                            shape=(1, v_size))
+        return self.label_to_str[self.rf.predict(csr_mat)[0]]
 
 if __name__ == "__main__":
     test = IRTraining()
@@ -98,10 +116,7 @@ if __name__ == "__main__":
     test.training("file-list", "inverted-file", "terms")
     # test.training("/tmp2/p03922004/file-list", "/tmp2/p03922004/inverted-file", \
     #                                            "/tmp2/p03922004/terms")
-    a = []
-    for i in range(23):
-        a.append(0.0)
-
+    a = {}
     a[2] = 3.0
     a[3] = 1.0
     a[11] = 2.0

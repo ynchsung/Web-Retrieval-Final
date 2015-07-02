@@ -275,7 +275,7 @@ class Collection:
         if not associated_url:
             self.doc_ids_without_url.add(new_id)
         self.indexDoc(doc)
-        reteurn new_id
+        return new_id
 
 
     '''

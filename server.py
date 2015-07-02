@@ -15,14 +15,8 @@ bar_urls = {
     "Search": {"active": False, "url": "/search"},
 }
 
-# FIXME: avoid using global variable here.
 collection = Collection(".")
 ir_rfmodel = IRTraining()
-
-def add_new_file(nfile_path):
-    text_path = '' # the text file
-    collection.addDoc(text_path, nfile_path)
-    collection.updateIdf()
 
 class HomeHandler(tornado.web.RequestHandler):
     def get(self):
@@ -97,19 +91,26 @@ class MonitorHandler(tornado.web.RequestHandler):
         event_type = self.get_argument("type")
         dat = self.request.body
         print(dat, file=sys.stderr)
-        filenames = json.loads(dat)
+        filenames = json.loads(dat.decode("utf-8"))
         if event_type == "changed":
             for filename in filenames:
                 # when a document is changed, we remove it and re-add it again
                 collection.removeDocByName(filename)
-                collection.addDoc(filename)
+                file_id = collection.addDoc(filename)
+                doc_obj = collection.docs[file_id]
+                new_label = ir_rfmodel.predict(doc_obj.terms)
+                doc_obj.category = new_label
         elif event_type == "removed":
             for filename in filenames:
                 collection.removeDocByName(filename)
         elif event_type == "added":
             for filename in filenames:
-                collection.addDoc(filename)
+                file_id = collection.addDoc(filename)
+                doc_obj = collection.docs[file_id]
+                new_label = ir_rfmodel.predict(doc_obj.terms)
+                doc_obj.category = new_label
         collection.updateIdf() # recalculate IDF since the collection is changed.
+        collection.save()
 
 
 if __name__ == "__main__":
@@ -129,7 +130,7 @@ if __name__ == "__main__":
         'static_path': os.path.join(script_path, 'static'),
         'template_path': os.path.join(script_path, 'template'),
     }
-    # ir_rfmodel.training(sys.argv[1], sys.argv[2], sys.argv[3])
+    ir_rfmodel.training(sys.argv[1], sys.argv[2], sys.argv[3])
     ir_server = tornado.web.Application(handler, **settings)
     ir_server.listen(port)
     tornado.ioloop.IOLoop.current().start()

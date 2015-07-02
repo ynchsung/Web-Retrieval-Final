@@ -259,11 +259,12 @@ class Collection:
     or the URL of the course website.
     @category is the category or label of the file.
     Both @associated_url and @category are optional and can be empty.
+    Returns the doc_id of the newly added document.
     '''
     def addDoc(self, filename, associated_url = "", category = ""):
         # check for duplication
         if filename in self.doc_ids:
-            return # the document is already in the collection
+            return self.doc_ids[filename] # the document is already in the collection
         if self.deleted_doc_ids: # see if we can reuse the doc ID of a deleted file.
             new_id = self.deleted_doc_ids.pop()
         else:
@@ -274,6 +275,7 @@ class Collection:
         if not associated_url:
             self.doc_ids_without_url.add(new_id)
         self.indexDoc(doc)
+        reteurn new_id
 
 
     '''

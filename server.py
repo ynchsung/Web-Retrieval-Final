@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+import json
 from copy import deepcopy
 import tornado.ioloop
 import tornado.web
@@ -93,15 +94,23 @@ class SearchHandler(tornado.web.RequestHandler):
 
 class MonitorHandler(tornado.web.RequestHandler):
     def post(self):
-        typ = self.get_argument("type")
+        event_type = self.get_argument("type")
         dat = self.request.body
         print(dat, file=sys.stderr)
-        if typ == "changed":
-            pass
-        elif typ == "removed":
-            pass
-        elif typ == "added":
-            pass
+        filenames = json.loads(dat)
+        if event_type == "changed":
+            for filename in filenames:
+                # when a document is changed, we remove it and re-add it again
+                collection.removeDocByName(filename)
+                collection.addDoc(filename)
+        elif event_type == "removed":
+            for filename in filenames:
+                collection.removeDocByName(filename)
+        elif event_type == "added":
+            for filename in filenames:
+                collection.addDoc(filename)
+        collection.updateIdf() # recalculate IDF since the collection is changed.
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:

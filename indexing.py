@@ -308,6 +308,16 @@ class Collection:
 
 
     '''
+    remove document by filename
+    @doc_name is the file path of the document
+    '''
+    def removeDocByName(self, doc_name):
+        if doc_name in self.doc_ids:
+            doc_id = self.doc_ids[doc_name]
+            self.removeDoc(doc_id)
+
+
+    '''
     Segment text into a dict containing (term:frequency) pairs
     '''
     def tokenizeText(self, content):

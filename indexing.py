@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#  iindexing.py
+#  indexing.py
 #  
 #  Copyright 2015 PCMan <pcman.tw@gmail.com>
 #
@@ -102,11 +102,12 @@ class Collection:
 
     def __init__(self, dir_path):
         self.dir_path = dir_path
-        self.term_ids = dict() # string to term_id mapping
+        self.term_ids = {} # string to term_id mapping
         self.terms = [] # list of IndexTerm objects
         self.docs = [] # list of Doc objects
-        self.doc_ids = dict() # map document names to doc IDs
+        self.doc_ids = {} # map document names to doc IDs
         self.doc_ids_without_url = set() # ID of documents without associated URLs
+        self.categories = {} # category:[doc1,doc2...]
         self.new_doc_id = 0
         self.deleted_doc_ids = set() # set of doc_ids recycled from deleted files.
         self.new_term_id = 0
@@ -176,6 +177,8 @@ class Collection:
                                 category = parts[2]
                         doc = Doc(doc_id, filename, associated_url, category)
                         self.doc_ids[filename] = doc_id # map filename to doc ID
+                        if category: # add the document to the category dict
+                            self.setDocCategory(doc_id, category)
                     else:
                         self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
                     self.docs.append(doc)
@@ -274,6 +277,8 @@ class Collection:
         self.docs.append(doc)
         if not associated_url:
             self.doc_ids_without_url.add(new_id)
+        if not category:
+            self.setDocCategory(new_id, category)
         self.indexDoc(doc)
         return new_id
 
@@ -310,6 +315,10 @@ class Collection:
             index_term.freq -= freq # frequency of the term in the collection
             index_term.doc_freq -= 1 # number of docs containing the term
 
+        # remove the document from its category
+        if doc.category:
+            self.categories[doc.category].remove(doc.doc_id)
+
         self.docs[doc_id] = None # remove the doc object
         self.deleted_doc_ids.add(doc_id) # make the doc ID reusable
         if doc_id in self.doc_ids_without_url:
@@ -317,13 +326,34 @@ class Collection:
 
 
     '''
-    remove document by filename
+    Remove document by filename
     @doc_name is the file path of the document
     '''
     def removeDocByName(self, doc_name):
         if doc_name in self.doc_ids:
             doc_id = self.doc_ids[doc_name]
             self.removeDoc(doc_id)
+
+
+    '''
+    Set a new category for the doc.
+    If @new_category is "", the doc is removed from its current category.
+    '''
+    def setDocCategory(self, doc_id, new_category = ""):
+        if doc_id not in self.docs:
+            return # no such doc
+        doc = self.docs[doc_id]
+        if doc.category == new_category:
+            return
+        # remove from old category
+        if doc.category:
+            self.categories[doc.category].remove(doc_id)
+
+        # add the document to the category dict
+        if new_category:
+            if not self.categories[new_category]:
+                self.categories[new_category] = set()
+        self.categories[new_category].add(doc_id)
 
 
     '''

@@ -107,7 +107,7 @@ class Collection:
         self.docs = [] # list of Doc objects
         self.doc_ids = {} # map document names to doc IDs
         self.doc_ids_without_url = set() # ID of documents without associated URLs
-        self.categories = {} # category:[doc1,doc2...]
+        self.categories = {} # string cate: set(doc_id1,doc_id2...)
         self.new_doc_id = 0
         self.deleted_doc_ids = set() # set of doc_ids recycled from deleted files.
         self.new_term_id = 0
@@ -164,24 +164,25 @@ class Collection:
                 line = line.strip()
                 if line:
                     doc = None
+                    category = ""
                     if line != "?": # the file is deleted if its name is "?"
                         parts = line.rsplit("\t", maxsplit = 2) # split filename and associated URL
                         filename = parts[0]
                         associated_url = ""
-                        category = ""
                         if len(parts) > 1:
                             associated_url = parts[1]
                             if not associated_url: # if the document has no associated URL
                                 self.doc_ids_without_url.add(doc_id)
                             if len(parts) > 2:
                                 category = parts[2]
-                        doc = Doc(doc_id, filename, associated_url, category)
+                        doc = Doc(doc_id, filename, associated_url)
                         self.doc_ids[filename] = doc_id # map filename to doc ID
-                        if category: # add the document to the category dict
-                            self.setDocCategory(doc_id, category)
                     else:
                         self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
                     self.docs.append(doc)
+                    if category: # add the document to the category dict
+                        print("OAO:", category)
+                        self.setDocCategory(doc_id, category)
                     doc_id += 1
             f.close()
         except:
@@ -340,21 +341,24 @@ class Collection:
     If @new_category is "", the doc is removed from its current category.
     '''
     def setDocCategory(self, doc_id, new_category = ""):
-        if doc_id not in self.docs:
+        print(doc_id, len(self.docs))
+        if doc_id >= len(self.docs):
             return # no such doc
         doc = self.docs[doc_id]
-        if doc.category == new_category:
-            return
+        print(doc.category, new_category)
+        # if doc.category == new_category:
+           # return
         # remove from old category
+
         if doc.category:
             self.categories[doc.category].remove(doc_id)
 
         # add the document to the category dict
         if new_category:
-            if not self.categories[new_category]:
+            if new_category not in self.categories:
                 self.categories[new_category] = set()
         self.categories[new_category].add(doc_id)
-
+        doc.category = new_category
 
     '''
     Segment text into a dict containing (term:frequency) pairs

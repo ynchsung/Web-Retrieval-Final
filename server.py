@@ -27,28 +27,23 @@ class ViewHandler(tornado.web.RequestHandler):
     def get(self):
         bu = deepcopy(bar_urls)
         bu["View"]["active"] = True
-        data = {
-            'Information Retrival': [
-                "./PJCheng/1.wav",
-                "./PJCheng/2.wav",
-                "./PJCheng/3.wav",
-                "./PJCheng/4.wav",
-                "./PJCheng/5.wav",
-            ],
-            'Machine Learning': [
-                "./HTLin/1.wav",
-                "./HTLin/2.wav",
-                "./HTLin/3.wav",
-                "./HTLin/4.wav",
-            ],
-        }
-        success = False
-        try:
-            tmp = self.get_query_argument("success")
-            success = True
-        except:
-            pass
-        self.render("view.html", bar_urls=bu, data=data, success=success)
+        data = {}
+        docset = collection.doc_ids_without_url
+        for doc_id in docset:
+            doc_obj = collection.docs[doc_id]
+            label_name = doc_obj.category
+            if not label_name in data:
+                data[label_name] = []
+            data[label_name].append((doc_obj.filename, []))
+            idx = len(data[label_name]) - 1
+            get_doc = collection.categories[label_name]
+            cnt = 0
+            for x in get_doc:
+                if cnt >= 5:
+                    break
+                data[label_name][idx][1].append(collection.docs[x].filename)
+
+        self.render("view.html", bar_urls=bu, data=data)
 
 class AddHandler(tornado.web.RequestHandler):
     def get(self):
@@ -99,7 +94,7 @@ class MonitorHandler(tornado.web.RequestHandler):
                 file_id = collection.addDoc(filename)
                 doc_obj = collection.docs[file_id]
                 new_label = ir_rfmodel.predict(doc_obj.terms)
-                doc_obj.category = new_label
+                collection.setDocCategory(file_id, new_label)
         elif event_type == "removed":
             for filename in filenames:
                 collection.removeDocByName(filename)
@@ -108,7 +103,7 @@ class MonitorHandler(tornado.web.RequestHandler):
                 file_id = collection.addDoc(filename)
                 doc_obj = collection.docs[file_id]
                 new_label = ir_rfmodel.predict(doc_obj.terms)
-                doc_obj.category = new_label
+                collection.setDocCategory(file_id, new_label)
         collection.updateIdf() # recalculate IDF since the collection is changed.
         collection.save()
 

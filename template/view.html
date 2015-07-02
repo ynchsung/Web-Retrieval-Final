@@ -1,9 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-    {% if success %}
-    <div class="alert alert-success" role="alert">Adding success!!!</div>
-    {% end %}
     <div class="container">
         <div class="jumbotron profile">
             <h1>View</h1>
@@ -13,11 +10,18 @@
             <blockquote>
                 <li>
                     {{ escape(first) }}
-                    <ul>
-                    {% for x in second %}
-                    <li>{{ escape(x) }}</li>
-                    {% end %}
-                    </ul>
+                    <ol>
+                        {% for x in second %}
+                        <li>
+                            {{ escape(x[0]) }}
+                            <ul>
+                                {% for y in x[1] %}
+                                <li>{{ escape(y) }}</li>
+                                {% end %}
+                            </ul>
+                        </li>
+                        {% end %}
+                    </ol>
                 </li>
             </blockquote>
             {% end %}

@@ -87,10 +87,11 @@ def readPdfFile(filename):
 Document
 '''
 class Doc:
-    def __init__(self, doc_id, filename, associated_url = ''):
+    def __init__(self, doc_id, filename, associated_url = "", category=""):
         self.doc_id = doc_id
         self.filename = filename
         self.associated_url = associated_url
+        self.category = category
         self.terms = dict() # term vector of the document (key: term_id, value: term_freq)
 
 
@@ -150,9 +151,9 @@ class Collection:
         try:
             '''
             Format of the file-list: each line contains:
-            <file_path>\t<associated_url>
+            <file_path>\t<associated_url>\t<category>
             the line nunmber is doc ID (zero-based)
-            <associated_url> is optional and can be empty
+            <associated_url> and <category> are optional and can be empty
             If the filename is "?", that means, the document is already 
             deleted and we should set it to None.
             '''
@@ -165,9 +166,12 @@ class Collection:
                         parts = line.rsplit("\t", maxsplit = 1) # split filename and associated URL
                         filename = parts[0]
                         associated_url = ""
+                        category = ""
                         if len(parts) > 1:
                             associated_url = parts[1]
-                        doc = Doc(doc_id, filename, associated_url)
+                            if len(parts) > 2:
+                                category = parts[2]
+                        doc = Doc(doc_id, filename, associated_url, category)
                         self.doc_ids[filename] = doc_id # map filename to doc ID
                     else:
                         self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
@@ -229,7 +233,7 @@ class Collection:
         f = open(self.dir_path + "/file-list", "w", errors="ignore")
         for doc in self.docs:
             if doc:
-                f.write("%s\t%s\n" % (doc.filename, doc.associated_url))
+                f.write("%s\t%s\t%s\n" % (doc.filename, doc.associated_url, doc.category))
             else:
                 f.write("?\n") # the doc is already deleted, write "?" for its filename
         f.close()
@@ -248,8 +252,12 @@ class Collection:
     '''
     Add a new document to the collection
     After calling addDoc(), call updateIdf() to re-calculate IDF for terms.
+    @associated_url is an URL associated with the file, such as the original download URL
+    or the URL of the course website.
+    @category is the category or label of the file.
+    Both @associated_url and @category are optional and can be empty.
     '''
-    def addDoc(self, filename, associated_url = ''):
+    def addDoc(self, filename, associated_url = "", category = ""):
         # check for duplication
         if filename in self.doc_ids:
             return # the document is already in the collection
@@ -258,7 +266,7 @@ class Collection:
         else:
             new_id = self.new_doc_id # generated a new doc ID
             self.new_doc_id += 1
-        doc = Doc(new_id, filename, associated_url)
+        doc = Doc(new_id, filename, associated_url, category)
         self.docs.append(doc)
         self.indexDoc(doc)
 
@@ -455,22 +463,44 @@ class Collection:
 
 def main():
     collection = Collection(".")
+    '''
     for filename in sys.argv[1:]:
         print("Indexing:", filename)
         collection.addDoc(filename)
+    '''
+    if len(sys.argv) < 2:
+        return 1
+
+    # read a file-list
+    f = open(sys.argv[1], "r")
+    for line in f:
+        # format of each line:
+        # <dir_path> <url> >category> <num> <file1> <file2> <file3>....
+        line = line.strip()
+        parts = line.split(" ")
+        dir_path = parts[0]
+        url = parts[1]
+        category = parts[2]
+        n = int(parts[3])
+        for i in range(4, n + 4):
+            filename = "%s/%s" % (dir_path, parts[i])
+            print("Indexing:", filename)
+        collection.addDoc(filename, url, category)
+    f.close()
 
     # re-calculate IDF for all terms since the collection is changed
     collection.updateIdf()
 
     # write the changed index to disk
-    # collection.save()
+    collection.save()
 
     # Test query
+    '''
     i = 1
     for doc_id in collection.query("programming"):
         print(i, doc_id, collection.docs[doc_id].filename)
         i += 1
-
+    '''
     return 0
 
 if __name__ == '__main__':

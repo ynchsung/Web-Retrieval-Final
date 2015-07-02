@@ -474,7 +474,7 @@ def main():
         n = int(parts[3])
         for i in range(4, n + 4):
             filename = "%s/%s" % (dir_path, parts[i])
-            print("Indexing:", filename, end=sys.stderr)
+            print("Indexing:", filename, file=sys.stderr)
             collection.addDoc(filename, url, category)
     f.close()
 

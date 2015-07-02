@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import json
+import random
 from copy import deepcopy
 import tornado.ioloop
 import tornado.web
@@ -34,16 +35,23 @@ class ViewHandler(tornado.web.RequestHandler):
             label_name = doc_obj.category
             if not label_name in data:
                 data[label_name] = []
-            data[label_name].append((doc_obj.filename, set()))
+            data[label_name].append((doc_obj.filename, []))
             idx = len(data[label_name]) - 1
-            get_doc = collection.categories[label_name]
+
             cnt = 0
-            for x in get_doc:
-                if cnt >= 5:
-                    break
-                if not collection.docs[x].associated_url in data[label_name][idx][1]:
-                    data[label_name][idx][1].add(collection.docs[x].associated_url)
+            get_doc = [d_id for d_id in collection.categories[label_name]]
+            get_set = set()
+            while cnt < 10:
+                r_idx = random.randint(0, len(get_doc) - 1)
+                d_id = get_doc[r_idx]
+                if not collection.docs[d_id].associated_url in get_set and \
+                                    collection.docs[d_id].associated_url != "":
+                    data[label_name][idx][1].append(collection.docs[d_id].associated_url)
+                    get_set.add(collection.docs[d_id].associated_url)
                     cnt += 1
+
+            del get_doc
+            del get_set
         self.render("view.html", bar_urls=bu, data=data)
 
 class AddHandler(tornado.web.RequestHandler):
@@ -74,13 +82,24 @@ class SearchHandler(tornado.web.RequestHandler):
         bu["Search"]["active"] = True
         query_word = self.get_argument("query")
         ret = collection.query(query_word)
-        ret_str = []
+        ret_file = []
+        ret_course = []
+
         for x in ret:
-            ret_str.append(collection.docs[x].filename)
-        if len(ret_str) < 50:
-            self.render("result.html", bar_urls=bu, re=ret_str)
-        else:
-            self.render("result.html", bar_urls=bu, re=ret_str[0:50])
+            if collection.docs[x].associated_url == "":
+                ret_file.append(collection.docs[x].filename)
+
+        idx = 0
+        course_set = set()
+        while idx < len(ret) and len(ret_course) < 50:
+            file_id = ret[idx]
+            if collection.docs[file_id].associated_url != "" and \
+                    not collection.docs[file_id].associated_url in course_set:
+                ret_course.append(collection.docs[file_id].associated_url)
+                course_set.add(collection.docs[file_id].associated_url)
+            idx += 1
+
+        self.render("result.html", bar_urls=bu, ret_file=ret_file, ret_course=ret_course)
 
 class MonitorHandler(tornado.web.RequestHandler):
     def post(self):

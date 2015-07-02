@@ -5,11 +5,16 @@
         <div class="jumbotron profile">
             <h1>Search Result</h1>
         </div>
+        <h2>本機檔案：</h2>
         <ol>
-            {% for data in re %}
-            <blockquote>
-                <li>{{ escape(str(data)) }}</li>
-            </blockquote>
+            {% for data in ret_file %}
+            <li>{{ escape(str(data)) }}</li>
+            {% end %}
+        </ol>
+        <h2>推薦相關課程：</h2>
+        <ol>
+            {% for data in ret_course %}
+            <li><a href="{{ escape(str(data)) }}" target="_blank">{{ escape(str(data)) }}</a></li>
             {% end %}
         </ol>
     </div>

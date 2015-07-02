@@ -106,6 +106,7 @@ class Collection:
         self.terms = [] # list of IndexTerm objects
         self.docs = [] # list of Doc objects
         self.doc_ids = dict() # map document names to doc IDs
+        self.doc_ids_without_url = set() # ID of documents without associated URLs
         self.new_doc_id = 0
         self.deleted_doc_ids = set() # set of doc_ids recycled from deleted files.
         self.new_term_id = 0
@@ -169,6 +170,8 @@ class Collection:
                         category = ""
                         if len(parts) > 1:
                             associated_url = parts[1]
+                            if not associated_url: # if the document has no associated URL
+                                self.doc_ids_without_url.add(doc_id)
                             if len(parts) > 2:
                                 category = parts[2]
                         doc = Doc(doc_id, filename, associated_url, category)
@@ -268,6 +271,8 @@ class Collection:
             self.new_doc_id += 1
         doc = Doc(new_id, filename, associated_url, category)
         self.docs.append(doc)
+        if not associated_url:
+            self.doc_ids_without_url.add(new_id)
         self.indexDoc(doc)
 
 
@@ -305,6 +310,8 @@ class Collection:
 
         self.docs[doc_id] = None # remove the doc object
         self.deleted_doc_ids.add(doc_id) # make the doc ID reusable
+        if doc_id in self.doc_ids_without_url:
+            self.doc_ids_without_url.remove(doc_id)
 
 
     '''

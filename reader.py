@@ -4,6 +4,7 @@
 
 import zipfile
 import sys
+import subprocess
 from lxml import etree
 
 def extractTextFromXml(xml):
@@ -114,11 +115,13 @@ def extractTextFromFile(filename):
         content = readDocFile(filename)
     elif ext == ".pdf":
         content = readPdfFile(filename)
-    else: # ordinary text file
+    elif ext == ".txt": # ordinary text file
         f = open(filename, "r")
         if f:
             content = f.read()
             f.close()
+    else:
+        pass
     return content
 
 def main():

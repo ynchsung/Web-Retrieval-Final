@@ -41,7 +41,7 @@ class ViewHandler(tornado.web.RequestHandler):
             for x in get_doc:
                 if cnt >= 5:
                     break
-                data[label_name][idx][1].append(collection.docs[x].filename)
+                data[label_name][idx][1].append(collection.docs[x].associated_url)
 
         self.render("view.html", bar_urls=bu, data=data)
 

@@ -87,11 +87,11 @@ def readPdfFile(filename):
 Document
 '''
 class Doc:
-    def __init__(self, doc_id, filename, associated_url = "", category=""):
+    def __init__(self, doc_id, filename, associated_url = ""):
         self.doc_id = doc_id
         self.filename = filename
         self.associated_url = associated_url
-        self.category = category
+        self.category = ""
         self.terms = dict() # term vector of the document (key: term_id, value: term_freq)
 
 
@@ -274,11 +274,11 @@ class Collection:
         else:
             new_id = self.new_doc_id # generated a new doc ID
             self.new_doc_id += 1
-        doc = Doc(new_id, filename, associated_url, category)
+        doc = Doc(new_id, filename, associated_url)
         self.docs.append(doc)
         if not associated_url:
             self.doc_ids_without_url.add(new_id)
-        if not category:
+        if category:
             self.setDocCategory(new_id, category)
         self.indexDoc(doc)
         return new_id

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-#  iindexing.py
+#  indexing.py
 #  
 #  Copyright 2015 PCMan <pcman.tw@gmail.com>
 #
@@ -29,7 +29,7 @@ Read *.srt files
 '''
 def readSrtFile(filename):
     state = 0
-    f = open(filename, "r")
+    f = open(filename, "r", errors="ignore")
     lines = []
     for line in f:
         if state == 0: # skip No. of subtitle
@@ -51,7 +51,11 @@ Read *.doc files
 This requires "catdoc" command
 '''
 def readDocFile(filename):
-    return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode("utf-8")
+    try:
+        return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode(encoding="utf-8", errors="ignore")
+    except:
+        print("error reading doc file", filename)
+    return ''
 
 
 '''
@@ -59,7 +63,11 @@ Read *.ppt files
 This requires "catppt" command
 '''
 def readPptFile(filename):
-    return subprocess.check_output(["catppt", "-dutf-8", filename]).decode("utf-8")
+    try:
+        return subprocess.check_output(["catppt", "-dutf-8", filename]).decode(encoding="utf-8", errors="ignore")
+    except:
+        print("error reading ppt file", filename)
+    return ''
 
 
 '''
@@ -67,17 +75,23 @@ Read *.pdf files
 This requires "pdftotext" command (provided by poppler-utils)
 '''
 def readPdfFile(filename):
-    return subprocess.check_output(["pdftotext", filename, '-']).decode("utf-8")
+    try:
+        return subprocess.check_output(["pdftotext", filename, '-']).decode(encoding="utf-8", errors="ignore")
+    except:
+        print("error reading pdf file", filename)
+    return ''
+
 
 
 '''
 Document
 '''
 class Doc:
-    def __init__(self, doc_id, filename, associated_url = ''):
+    def __init__(self, doc_id, filename, associated_url = "", category=""):
         self.doc_id = doc_id
         self.filename = filename
         self.associated_url = associated_url
+        self.category = category
         self.terms = dict() # term vector of the document (key: term_id, value: term_freq)
 
 
@@ -88,10 +102,12 @@ class Collection:
 
     def __init__(self, dir_path):
         self.dir_path = dir_path
-        self.term_ids = dict() # string to term_id mapping
+        self.term_ids = {} # string to term_id mapping
         self.terms = [] # list of IndexTerm objects
         self.docs = [] # list of Doc objects
-        self.doc_ids = dict() # map document names to doc IDs
+        self.doc_ids = {} # map document names to doc IDs
+        self.doc_ids_without_url = set() # ID of documents without associated URLs
+        self.categories = {} # category:[doc1,doc2...]
         self.new_doc_id = 0
         self.deleted_doc_ids = set() # set of doc_ids recycled from deleted files.
         self.new_term_id = 0
@@ -114,9 +130,9 @@ class Collection:
             each line contains:
             <term_string> <term_id> <collection_freq>
             '''
-            f = open(self.dir_path + "/terms", "r")
+            f = open(self.dir_path + "/terms", "r", errors="ignore")
             for line in f:
-                vals = line.split()
+                vals = line.split(" ")
                 term = vals[0]
                 term_id = int(vals[1])
                 index_term = IndexTerm(term_id, term)
@@ -125,7 +141,7 @@ class Collection:
                 self.terms.append(index_term)
             f.close()
         except:
-            print("terms cannot be loaded")
+            print("terms cannot be loaded", sys.exc_info())
         self.new_term_id = len(self.terms)
 
     '''
@@ -136,26 +152,40 @@ class Collection:
         doc_id = 0
         try:
             '''
-            Format of the file-list: each line contains a file path
+            Format of the file-list: each line contains:
+            <file_path>\t<associated_url>\t<category>
             the line nunmber is doc ID (zero-based)
+            <associated_url> and <category> are optional and can be empty
             If the filename is "?", that means, the document is already 
             deleted and we should set it to None.
             '''
-            f = open(self.dir_path + "/file-list", "r")
+            f = open(self.dir_path + "/file-list", "r", errors="ignore")
             for line in f:
-                filename = line.strip()
-                if filename:
+                line = line.strip()
+                if line:
                     doc = None
-                    if filename != "?": # the file is deleted if its name is "?"
-                        doc = Doc(doc_id, filename)
+                    if line != "?": # the file is deleted if its name is "?"
+                        parts = line.rsplit("\t", maxsplit = 2) # split filename and associated URL
+                        filename = parts[0]
+                        associated_url = ""
+                        category = ""
+                        if len(parts) > 1:
+                            associated_url = parts[1]
+                            if not associated_url: # if the document has no associated URL
+                                self.doc_ids_without_url.add(doc_id)
+                            if len(parts) > 2:
+                                category = parts[2]
+                        doc = Doc(doc_id, filename, associated_url, category)
                         self.doc_ids[filename] = doc_id # map filename to doc ID
+                        if category: # add the document to the category dict
+                            self.setDocCategory(doc_id, category)
                     else:
                         self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
                     self.docs.append(doc)
                     doc_id += 1
             f.close()
         except:
-            print("file-list cannot be loaded")
+            print("file-list cannot be loaded", sys.exc_info())
         self.new_doc_id = doc_id
 
         # load inverted file
@@ -164,11 +194,11 @@ class Collection:
             Format of the inverted-file:
             <term_id> <num_docs> <doc1>:<tf1> <doc2>:<tf2> <doc3>:<tf3> ....
             '''
-            f = open(self.dir_path + "/inverted-file", "r")
+            f = open(self.dir_path + "/inverted-file", "r", errors="ignore")
             for line in f:
                 line = line.strip()
                 if line:
-                    vals = line.split()
+                    vals = line.split(" ")
                     term_id = int(vals[0])
                     index_term = self.terms[term_id]
                     items = vals[2:]
@@ -183,7 +213,7 @@ class Collection:
                         doc.terms[term_id] = freq # set term frequency in the doc vector
             f.close()
         except:
-            print("inverted-file cannot be loaded")
+            print("inverted-file cannot be loaded", sys.exc_info())
 
 
     '''
@@ -200,22 +230,22 @@ class Collection:
     '''
     def save(self):
         # write index terms
-        f = open(self.dir_path + "/terms", "w")
+        f = open(self.dir_path + "/terms", "w", errors="ignore")
         for index_term in self.terms:
             f.write("%s %d %d\n" % (index_term.term, index_term.term_id, index_term.freq))
         f.close()
 
         # write doc list
-        f = open(self.dir_path + "/file-list", "w")
+        f = open(self.dir_path + "/file-list", "w", errors="ignore")
         for doc in self.docs:
             if doc:
-                f.write("%s\n" % (doc.filename))
+                f.write("%s\t%s\t%s\n" % (doc.filename, doc.associated_url, doc.category))
             else:
                 f.write("?\n") # the doc is already deleted, write "?" for its filename
         f.close()
 
         # write inverted file
-        f = open(self.dir_path + "/inverted-file", "w")
+        f = open(self.dir_path + "/inverted-file", "w", errors="ignore")
         for term in self.terms:
             f.write("%d %d" % (term.term_id, len(term.doc_ids)))
             for doc_id in term.doc_ids:
@@ -227,23 +257,36 @@ class Collection:
 
     '''
     Add a new document to the collection
+    After calling addDoc(), call updateIdf() to re-calculate IDF for terms.
+    @associated_url is an URL associated with the file, such as the original download URL
+    or the URL of the course website.
+    @category is the category or label of the file.
+    Both @associated_url and @category are optional and can be empty.
+    Returns the doc_id of the newly added document.
     '''
-    def addDoc(self, filename, associated_url = ''):
+    def addDoc(self, filename, associated_url = "", category = ""):
         # check for duplication
         if filename in self.doc_ids:
-            return # the document is already in the collection
+            return self.doc_ids[filename] # the document is already in the collection
         if self.deleted_doc_ids: # see if we can reuse the doc ID of a deleted file.
             new_id = self.deleted_doc_ids.pop()
         else:
             new_id = self.new_doc_id # generated a new doc ID
             self.new_doc_id += 1
-        doc = Doc(new_id, filename, associated_url)
+        doc = Doc(new_id, filename, associated_url, category)
         self.docs.append(doc)
+        if not associated_url:
+            self.doc_ids_without_url.add(new_id)
+        if not category:
+            self.setDocCategory(new_id, category)
         self.indexDoc(doc)
+        return new_id
 
 
     '''
     Remove an existing document from the collection
+    After calling removeDoc(), call updateIdf() to re-calculate IDF for terms.
+
     NOTE: simply removing the doc from the list will not work since
         we have to re-assign new doc_ids to all docs after the doc_id and
         this is very expensive. There needs to be a better way to do it.
@@ -272,11 +315,45 @@ class Collection:
             index_term.freq -= freq # frequency of the term in the collection
             index_term.doc_freq -= 1 # number of docs containing the term
 
+        # remove the document from its category
+        if doc.category:
+            self.categories[doc.category].remove(doc.doc_id)
+
         self.docs[doc_id] = None # remove the doc object
         self.deleted_doc_ids.add(doc_id) # make the doc ID reusable
+        if doc_id in self.doc_ids_without_url:
+            self.doc_ids_without_url.remove(doc_id)
 
-        # re-calculate IDF for all terms since the collection is changed
-        self.updateIdf()
+
+    '''
+    Remove document by filename
+    @doc_name is the file path of the document
+    '''
+    def removeDocByName(self, doc_name):
+        if doc_name in self.doc_ids:
+            doc_id = self.doc_ids[doc_name]
+            self.removeDoc(doc_id)
+
+
+    '''
+    Set a new category for the doc.
+    If @new_category is "", the doc is removed from its current category.
+    '''
+    def setDocCategory(self, doc_id, new_category = ""):
+        if doc_id not in self.docs:
+            return # no such doc
+        doc = self.docs[doc_id]
+        if doc.category == new_category:
+            return
+        # remove from old category
+        if doc.category:
+            self.categories[doc.category].remove(doc_id)
+
+        # add the document to the category dict
+        if new_category:
+            if not self.categories[new_category]:
+                self.categories[new_category] = set()
+        self.categories[new_category].add(doc_id)
 
 
     '''
@@ -381,8 +458,6 @@ class Collection:
             index_term.doc_ids.add(doc.doc_id) # add the doc to the doc list of the term
             index_term.doc_freq += 1 # update DF of the term
 
-        # re-calculate IDF for all terms since the collection is changed
-        self.updateIdf()
 
     '''
     Calculate the cosine similarity of two term vectors
@@ -437,17 +512,44 @@ class Collection:
 
 def main():
     collection = Collection(".")
+    '''
     for filename in sys.argv[1:]:
         print("Indexing:", filename)
         collection.addDoc(filename)
-    #collection.save()
+    '''
+    if len(sys.argv) < 2:
+        return 1
+
+    # read a file-list
+    f = open(sys.argv[1], "r")
+    for line in f:
+        # format of each line:
+        # <dir_path> <url> >category> <num> <file1> <file2> <file3>....
+        line = line.strip()
+        parts = line.split(" ")
+        dir_path = parts[0]
+        url = parts[1]
+        category = parts[2]
+        n = int(parts[3])
+        for i in range(4, n + 4):
+            filename = "%s/%s" % (dir_path, parts[i])
+            print("Indexing:", filename)
+        collection.addDoc(filename, url, category)
+    f.close()
+
+    # re-calculate IDF for all terms since the collection is changed
+    collection.updateIdf()
+
+    # write the changed index to disk
+    collection.save()
 
     # Test query
+    '''
     i = 1
     for doc_id in collection.query("programming"):
         print(i, doc_id, collection.docs[doc_id].filename)
         i += 1
-
+    '''
     return 0
 
 if __name__ == '__main__':

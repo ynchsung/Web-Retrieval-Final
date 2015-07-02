@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+import json
 from copy import deepcopy
 import tornado.ioloop
 import tornado.web
@@ -11,18 +12,11 @@ from ir_training import *
 
 bar_urls = {
     "View": {"active": False, "url": "/view"},
-    "Add": {"active": False, "url": "/add"},
     "Search": {"active": False, "url": "/search"},
 }
 
-# FIXME: avoid using global variable here.
 collection = Collection(".")
 ir_rfmodel = IRTraining()
-
-def add_new_record(wav_path):
-    # TODO: using speech recognition to generate a text document for the wav file.
-    text_path = '' # the text file
-    collection.addDoc(text_path, wav_path)
 
 class HomeHandler(tornado.web.RequestHandler):
     def get(self):
@@ -70,12 +64,8 @@ class AddHandler(tornado.web.RequestHandler):
 
     def post(self):
         path = self.get_argument("path")
-        # TODO:
-        # add_new_record(path)
-        # if success:
+        add_new_file(path)
         self.redirect("/view?success")
-        # else:
-        # self.redirect("/add?retry")
 
 class SearchHandler(tornado.web.RequestHandler):
     def get(self):
@@ -84,23 +74,63 @@ class SearchHandler(tornado.web.RequestHandler):
         self.render("search.html", bar_urls=bu)
 
     def post(self):
+        bu = deepcopy(bar_urls)
+        bu["Search"]["active"] = True
         query_word = self.get_argument("query")
-        # TODO:
-        # query_record(query_word)
-        self.write("POST: server get %s"%(query_word,))
+        ret = collection.query(query_word)
+        ret_str = []
+        for x in ret:
+            ret_str.append(collection.docs[x].filename)
+        if len(ret_str) < 50:
+            self.render("result.html", bar_urls=bu, re=ret_str)
+        else:
+            self.render("result.html", bar_urls=bu, re=ret_str[0:50])
+
+class MonitorHandler(tornado.web.RequestHandler):
+    def post(self):
+        event_type = self.get_argument("type")
+        dat = self.request.body
+        print(dat, file=sys.stderr)
+        filenames = json.loads(dat.decode("utf-8"))
+        if event_type == "changed":
+            for filename in filenames:
+                # when a document is changed, we remove it and re-add it again
+                collection.removeDocByName(filename)
+                file_id = collection.addDoc(filename)
+                doc_obj = collection.docs[file_id]
+                new_label = ir_rfmodel.predict(doc_obj.terms)
+                doc_obj.category = new_label
+        elif event_type == "removed":
+            for filename in filenames:
+                collection.removeDocByName(filename)
+        elif event_type == "added":
+            for filename in filenames:
+                file_id = collection.addDoc(filename)
+                doc_obj = collection.docs[file_id]
+                new_label = ir_rfmodel.predict(doc_obj.terms)
+                doc_obj.category = new_label
+        collection.updateIdf() # recalculate IDF since the collection is changed.
+        collection.save()
+
 
 if __name__ == "__main__":
+    if len(sys.argv) < 4:
+        print("Usage: ./server.py [file_list_file] [inverted_file] [vocabulary_file]", file=sys.stderr)
+        sys.exit(1)
+
     handler = [
         (r"/", HomeHandler),
         (r"/view", ViewHandler),
         (r"/add", AddHandler),
         (r"/search", SearchHandler),
+        (r"/monitor", MonitorHandler),
     ]
     script_path = os.path.realpath(os.path.dirname(__file__))
     settings = {
         'static_path': os.path.join(script_path, 'static'),
         'template_path': os.path.join(script_path, 'template'),
     }
+    ir_rfmodel.training(sys.argv[1], sys.argv[2], sys.argv[3])
     ir_server = tornado.web.Application(handler, **settings)
     ir_server.listen(port)
     tornado.ioloop.IOLoop.current().start()

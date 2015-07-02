@@ -163,7 +163,7 @@ class Collection:
                 if line:
                     doc = None
                     if line != "?": # the file is deleted if its name is "?"
-                        parts = line.rsplit("\t", maxsplit = 1) # split filename and associated URL
+                        parts = line.rsplit("\t", maxsplit = 2) # split filename and associated URL
                         filename = parts[0]
                         associated_url = ""
                         category = ""

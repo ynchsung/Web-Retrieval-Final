@@ -9,16 +9,17 @@ from sklearn import ensemble
 class IRTraining():
     def __init__(self):
         self.rf = ensemble.RandomForestClassifier()
-        self.label_inv = []
+        self.v_dict = {}        # vocabulary map: (string word, int vocab_id)
+        self.v_list = []        # v_id -> string vocabulary
 
-    def training(self, label_file, flist_file, iv_file, v_file):
-        v_dict = {}             # vocabulary map: (string word, int vocab_id)
-        file_list = []          # file array: idx(file_id) -> string file_name
-        label_dict = {}         # label map: (string word, int label_id)
-        label_table = {}        # label map: (string dir_name, string word)
-        labels = []             # label list: idx(file_id) -> string word
-        self.label_inv[:] = []  # label inv_list: idx(label_id) -> string word
+        self.file_dict = {}     # file map: (string file_name, file_id for file_list)
+        self.file_list = []     # file_id -> (path, url, label)
+        self.label_dict = {}    # label map: (string label_name to label_id)
+        self.label_data = []    # label_id -> [file_id whose label is label_id]
+        self.label_to_str = []  # label_id -> string label
 
+    def training(self, flist_file, iv_file, v_file):
+        labels = []
         row = []
         col = []
         data = []
@@ -26,29 +27,36 @@ class IRTraining():
         label_size = 0
         doc_size = 0
 
-        with open(label_file, "rt") as fp:
-            for line in fp:
-                spt = line.rstrip().split(" ")
-                assert(len(spt) == 2)
-                if not spt[1] in label_dict:
-                    label_dict[spt[1]] = label_size
-                    self.label_inv.append(spt[1])
-                    label_size += 1
-                label_table[spt[0]] = label_dict[spt[1]]
-
         with open(flist_file, "rt") as fp:
             for line in fp:
-                spt = line.rstrip("\n").split("/")
-                assert(len(spt) >= 2)
-                assert(spt[1] in label_table)
-                labels.append(label_table[spt[1]])
+                spt = line.rstrip("\n").split("\t")
+                assert(len(spt) == 3)
+                # spt[0]: filename
+                # spt[1]: course_url for this file
+                # spt[2]: label of this file
+                assert(not spt[0] in self.file_dict)
+                self.file_list.append((spt[0], spt[1], spt[2]))
+                self.file_dict[spt[0]] = doc_size
+
+                if not spt[2] in self.label_dict:
+                    self.label_dict[spt[2]] = label_size
+                    self.label_to_str.append(spt[2])
+                    self.label_data.append([])
+                    now_label_id = label_size
+                    label_size += 1
+                else:
+                    now_label_id = self.label_dict[spt[2]]
+
+                labels.append(now_label_id)
+                self.label_data[now_label_id].append(doc_size)
                 doc_size += 1
 
-        with open(v_file, "rt") as fp:
+        with open(v_file, "rt", encoding="utf-8") as fp:
             for line in fp:
                 spt = line.rstrip("\n").split(" ")
-                assert(len(spt) == 3 and not spt[0] in v_dict)
-                v_dict[spt[0]] = v_size
+                assert(len(spt) == 3 and not spt[0] in self.v_dict)
+                self.v_dict[spt[0]] = v_size
+                self.v_list.append(spt[0])
                 v_size += 1
 
         with open(iv_file, "rt") as fp:
@@ -67,17 +75,35 @@ class IRTraining():
                     data.append(float(sp[1]) * idf)
                 idx += 1
 
-        print("Finish reading inverted file", file=sys.stderr)
+        print(self.v_dict, end="\n\n")
+        print(self.v_list, end="\n\n")
+        print(self.file_dict, end="\n\n")
+        print(self.file_list, end="\n\n")
+        print(self.label_dict, end="\n\n")
+        print(self.label_data, end="\n\n")
+        print(self.label_to_str, end="\n\n")
+
+        print("\n=====\nFinish reading file", file=sys.stderr)
         csc_mat = csc_matrix((data, (np.array(row), np.array(col))), \
                                                     shape=(doc_size, v_size))
         self.rf.fit(csc_mat, labels)
         print("Finish fitting into RandomForest", file=sys.stderr)
 
     def predict(self, vec):
-        return self.label_inv[self.rf.predict(vec)[0]]
+        return self.label_to_str[self.rf.predict(vec)[0]]
 
 if __name__ == "__main__":
     test = IRTraining()
 
-    test.training("/tmp2/b02902083/file.label", "/tmp2/p03922004/file-list", \
-                    "/tmp2/p03922004/inverted-file", "/tmp2/p03922004/terms")
+    test.training("file-list", "inverted-file", "terms")
+    # test.training("/tmp2/p03922004/file-list", "/tmp2/p03922004/inverted-file", \
+    #                                            "/tmp2/p03922004/terms")
+    a = []
+    for i in range(23):
+        a.append(0.0)
+
+    a[2] = 3.0
+    a[3] = 1.0
+    a[11] = 2.0
+    a[16] = 10.0
+    print(test.predict(a))

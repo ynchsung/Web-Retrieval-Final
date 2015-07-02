@@ -79,9 +79,17 @@ class SearchHandler(tornado.web.RequestHandler):
         self.render("search.html", bar_urls=bu)
 
     def post(self):
+        bu = deepcopy(bar_urls)
+        bu["Search"]["active"] = True
         query_word = self.get_argument("query")
-        collection.query(query_word)
-        self.write("POST: server get %s"%(query_word,))
+        ret = collection.query(query_word)
+        ret_str = []
+        for x in ret:
+            ret_str.append(collection.docs[x].filename)
+        if len(ret_str) < 50:
+            self.render("result.html", bar_urls=bu, re=ret_str)
+        else:
+            self.render("result.html", bar_urls=bu, re=ret_str[0:50])
 
 class MonitorHandler(tornado.web.RequestHandler):
     def post(self):
@@ -96,8 +104,8 @@ class MonitorHandler(tornado.web.RequestHandler):
             pass
 
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        print("Usage: ./server.py [label_file] [file_list_file] [inverted_file] [vocabulary_file]", file=sys.stderr)
+    if len(sys.argv) < 4:
+        print("Usage: ./server.py [file_list_file] [inverted_file] [vocabulary_file]", file=sys.stderr)
         sys.exit(1)
 
     handler = [
@@ -112,7 +120,7 @@ if __name__ == "__main__":
         'static_path': os.path.join(script_path, 'static'),
         'template_path': os.path.join(script_path, 'template'),
     }
-    # ir_rfmodel.training(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    # ir_rfmodel.training(sys.argv[1], sys.argv[2], sys.argv[3])
     ir_server = tornado.web.Application(handler, **settings)
     ir_server.listen(port)
     tornado.ioloop.IOLoop.current().start()

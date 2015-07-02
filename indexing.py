@@ -469,10 +469,12 @@ def main():
     f = open(sys.argv[1], "r")
     for line in f:
         # format of each line:
-        # <dir_path> <url> >category> <num> <file1> <file2> <file3>....
+        # <dir_path> <url> <category> <num> <file1> <file2> <file3>....
         line = line.strip()
         parts = line.split(" ")
         dir_path = parts[0]
+        if dir_path[0] != '/': # not full path, prepend the dirname of the filelist
+            dir_path = "%s/%s" % (os.path.dirname(sys.argv[1]), dir_path)
         url = parts[1]
         category = parts[2]
         n = int(parts[3])

@@ -89,6 +89,7 @@ class MonitorHandler(tornado.web.RequestHandler):
         print(dat, file=sys.stderr)
         filenames = json.loads(dat.decode("utf-8"))
         if event_type == "changed":
+            print("changed", file=sys.stderr)
             for filename in filenames:
                 # when a document is changed, we remove it and re-add it again
                 collection.removeDocByName(filename)
@@ -99,9 +100,11 @@ class MonitorHandler(tornado.web.RequestHandler):
                 new_label = ir_rfmodel.predict(doc_obj.terms)
                 collection.setDocCategory(file_id, new_label)
         elif event_type == "removed":
+            print("removed", file=sys.stderr)
             for filename in filenames:
                 collection.removeDocByName(filename)
         elif event_type == "added":
+            print("added", file=sys.stderr)
             for filename in filenames:
                 file_id = collection.addDoc(filename)
                 if file_id == -1:
@@ -111,6 +114,7 @@ class MonitorHandler(tornado.web.RequestHandler):
                 collection.setDocCategory(file_id, new_label)
         collection.updateIdf() # recalculate IDF since the collection is changed.
         collection.save()
+        print("done", file=sys.stderr)
 
 
 if __name__ == "__main__":

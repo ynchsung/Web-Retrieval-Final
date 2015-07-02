@@ -11,7 +11,7 @@ import http.client
 from gi.repository import GLib, Gio # glib/gio
 
 def send_request(file_list, typ):
-    h = http.client.HTTPConnection('linux10.csie.org', 7122)
+    h = http.client.HTTPConnection('127.0.0.1', 7122)
     h.request(method="POST", url="/monitor?type=%s"%(typ,), body=json.dumps(file_list))
     h.close()
 

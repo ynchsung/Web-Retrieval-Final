@@ -223,7 +223,10 @@ class Collection:
             new_id = self.new_doc_id # generated a new doc ID
             self.new_doc_id += 1
         doc = Doc(new_id, filename, associated_url)
-        self.docs.append(doc)
+        if new_id < len(self.docs):
+            self.docs[new_id] = doc
+        else:
+            self.docs.append(doc)
         self.doc_ids[filename] = new_id
         if not associated_url:
             self.doc_ids_without_url.add(new_id)
@@ -254,9 +257,9 @@ class Collection:
     def removeDoc(self, doc_id):
         if doc_id >= len(self.docs):
             return # no such document in the collection
-        self.doc_ids[doc_id] = None # remove from the filename list
+        doc = self.docs[doc_id]     # remove from the filename list
+        del self.doc_ids[doc.filename]
         # update term frequencies
-        doc = self.docs[doc_id]
         for term_id in doc.terms:
             freq = doc.terms[term_id] # freq of the term in the doc
 

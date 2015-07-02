@@ -13,6 +13,7 @@ import math
 import subprocess
 from nltk.stem.porter import *
 # import cProfile
+import reader
 
 '''
 Information of an index term
@@ -24,64 +25,6 @@ class IndexTerm:
         self.freq = 0 # frequency of the term in the collection
         self.doc_ids = set() # doc ID list of documents containing this term
         self.doc_freq = 0 # document frequency (for calculating IDF)
-
-'''
-Read *.srt files
-'''
-def readSrtFile(filename):
-    state = 0
-    f = open(filename, "r", errors="ignore")
-    lines = []
-    for line in f:
-        if state == 0: # skip No. of subtitle
-            state = 1
-        elif state == 1: # skip time
-            state = 2
-        else: # subtitle
-            line = line.strip()
-            if line:
-                lines.append(line)
-            else: # end of subtitle
-                state = 0
-    f.close()
-    return '\n'.join(lines)
-
-
-'''
-Read *.doc files
-This requires "catdoc" command
-'''
-def readDocFile(filename):
-    try:
-        return subprocess.check_output(["catdoc", "-dutf-8", filename]).decode(encoding="utf-8", errors="ignore")
-    except:
-        print("error reading doc file", filename)
-    return ''
-
-
-'''
-Read *.ppt files
-This requires "catppt" command
-'''
-def readPptFile(filename):
-    try:
-        return subprocess.check_output(["catppt", "-dutf-8", filename]).decode(encoding="utf-8", errors="ignore")
-    except:
-        print("error reading ppt file", filename)
-    return ''
-
-
-'''
-Read *.pdf files
-This requires "pdftotext" command (provided by poppler-utils)
-'''
-def readPdfFile(filename):
-    try:
-        return subprocess.check_output(["pdftotext", filename, '-']).decode(encoding="utf-8", errors="ignore")
-    except:
-        print("error reading pdf file", filename)
-    return ''
-
 
 
 '''
@@ -436,19 +379,7 @@ class Collection:
     @doc is a Doc object
     '''
     def indexDoc(self, doc):
-        # FIXME: handle case insensitive filename matching here
-        if doc.filename.endswith(".srt"): # *.srt subtitle file
-            content = readSrtFile(doc.filename)
-        elif doc.filename.endswith(".ppt") or doc.filename.endswith(".pptx"):
-            content = readPptFile(doc.filename)
-        elif doc.filename.endswith(".doc") or doc.filename.endswith(".docx"):
-            content = readDocFile(doc.filename)
-        elif doc.filename.endswith(".pdf"):
-            content = readPdfFile(doc.filename)
-        else: # ordinary text file
-            f = open(doc.filename, "r")
-            content = f.read()
-            f.close()
+        content = reader.extractTextFromFile(doc.filename)
 
         terms = self.tokenizeText(content)
         for term in terms:

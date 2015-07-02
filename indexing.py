@@ -224,7 +224,10 @@ class Collection:
     def updateIdf(self):
         n_docs = len(self.docs) - len(self.deleted_doc_ids) # since self.docs contains deleted files, we should not count them.
         for index_term in self.terms:
-            index_term.idf = math.log10(n_docs / index_term.doc_freq)
+            if index_term.doc_freq == 0:
+                index_term.idf = 0.0
+            else:
+                index_term.idf = math.log10(n_docs / index_term.doc_freq)
 
     '''
     Write all index terms and docs to files.
@@ -276,6 +279,7 @@ class Collection:
             self.new_doc_id += 1
         doc = Doc(new_id, filename, associated_url)
         self.docs.append(doc)
+        self.doc_ids[filename] = new_id
         if not associated_url:
             self.doc_ids_without_url.add(new_id)
         if category:
@@ -331,8 +335,11 @@ class Collection:
     @doc_name is the file path of the document
     '''
     def removeDocByName(self, doc_name):
+        print(doc_name)
+        print(self.doc_ids)
         if doc_name in self.doc_ids:
             doc_id = self.doc_ids[doc_name]
+            print(doc_id)
             self.removeDoc(doc_id)
 
 

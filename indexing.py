@@ -6,6 +6,7 @@
 #  Copyright 2015 PCMan <pcman.tw@gmail.com>
 #
 
+import os
 import sys
 import string
 import math
@@ -270,6 +271,8 @@ class Collection:
     '''
     def addDoc(self, filename, associated_url = "", category = ""):
         # check for duplication
+        if not os.path.exists(filename):
+            return -1
         if filename in self.doc_ids:
             return self.doc_ids[filename] # the document is already in the collection
         if self.deleted_doc_ids: # see if we can reuse the doc ID of a deleted file.

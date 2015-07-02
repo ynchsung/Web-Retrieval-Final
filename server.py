@@ -34,15 +34,16 @@ class ViewHandler(tornado.web.RequestHandler):
             label_name = doc_obj.category
             if not label_name in data:
                 data[label_name] = []
-            data[label_name].append((doc_obj.filename, []))
+            data[label_name].append((doc_obj.filename, set()))
             idx = len(data[label_name]) - 1
             get_doc = collection.categories[label_name]
             cnt = 0
             for x in get_doc:
                 if cnt >= 5:
                     break
-                data[label_name][idx][1].append(collection.docs[x].associated_url)
-
+                if not collection.docs[x].associated_url in data[label_name][idx][1]:
+                    data[label_name][idx][1].add(collection.docs[x].associated_url)
+                    cnt += 1
         self.render("view.html", bar_urls=bu, data=data)
 
 class AddHandler(tornado.web.RequestHandler):
@@ -92,6 +93,8 @@ class MonitorHandler(tornado.web.RequestHandler):
                 # when a document is changed, we remove it and re-add it again
                 collection.removeDocByName(filename)
                 file_id = collection.addDoc(filename)
+                if file_id == -1:
+                    continue
                 doc_obj = collection.docs[file_id]
                 new_label = ir_rfmodel.predict(doc_obj.terms)
                 collection.setDocCategory(file_id, new_label)
@@ -101,6 +104,8 @@ class MonitorHandler(tornado.web.RequestHandler):
         elif event_type == "added":
             for filename in filenames:
                 file_id = collection.addDoc(filename)
+                if file_id == -1:
+                    continue
                 doc_obj = collection.docs[file_id]
                 new_label = ir_rfmodel.predict(doc_obj.terms)
                 collection.setDocCategory(file_id, new_label)

@@ -16,7 +16,7 @@
                             {{ escape(x[0]) }}
                             <ul>
                                 {% for y in x[1] %}
-                                <li>{{ escape(y) }}</li>
+                                <li><a class="url" href="{{ escape(y) }}" target="_blank">{{ escape(y) }}</a></li>
                                 {% end %}
                             </ul>
                         </li>

@@ -67,7 +67,10 @@ class IRTraining():
             for line in fp:
                 spt = line.rstrip("\n").split(" ")
                 assert(len(spt) >= 2 and int(spt[1]) + 2 == len(spt))
-                idf = math.log(doc_size / float(spt[1]), 10)
+                if int(spt[1]) == 0:
+                    idf = 0
+                else:
+                    idf = math.log(doc_size / float(spt[1]), 10)
                 self.v_idf[int(spt[0])] = idf
                 for i in range(int(spt[1])):
                     t = spt[i + 2]
@@ -79,15 +82,15 @@ class IRTraining():
                     data.append(float(sp[1]) * idf)
                 idx += 1
 
-        print(self.v_dict, end="\n\n")
-        print(self.v_list, end="\n\n")
-        print(self.file_dict, end="\n\n")
-        print(self.file_list, end="\n\n")
-        print(self.label_dict, end="\n\n")
-        print(self.label_data, end="\n\n")
-        print(self.label_to_str, end="\n\n")
+        # print(self.v_dict, end="\n\n")
+        # print(self.v_list, end="\n\n")
+        # print(self.file_dict, end="\n\n")
+        # print(self.file_list, end="\n\n")
+        # print(self.label_dict, end="\n\n")
+        # print(self.label_data, end="\n\n")
+        # print(self.label_to_str, end="\n\n")
 
-        print("\n=====\nFinish reading file", file=sys.stderr)
+        print("Finish reading file", file=sys.stderr)
         csc_mat = csc_matrix((data, (np.array(row), np.array(col))), \
                                                     shape=(doc_size, v_size))
         self.rf.fit(csc_mat, labels)

@@ -125,7 +125,6 @@ class Collection:
                         self.deleted_doc_ids.add(doc_id) # this doc ID is not in used and can be reused later.
                     self.docs.append(doc)
                     if category: # add the document to the category dict
-                        print("OAO:", category)
                         self.setDocCategory(doc_id, category)
                     doc_id += 1
             f.close()
@@ -281,11 +280,8 @@ class Collection:
     @doc_name is the file path of the document
     '''
     def removeDocByName(self, doc_name):
-        print(doc_name)
-        print(self.doc_ids)
         if doc_name in self.doc_ids:
             doc_id = self.doc_ids[doc_name]
-            print(doc_id)
             self.removeDoc(doc_id)
 
 
@@ -294,11 +290,9 @@ class Collection:
     If @new_category is "", the doc is removed from its current category.
     '''
     def setDocCategory(self, doc_id, new_category = ""):
-        print(doc_id, len(self.docs))
         if doc_id >= len(self.docs):
             return # no such doc
         doc = self.docs[doc_id]
-        print(doc.category, new_category)
         # if doc.category == new_category:
            # return
         # remove from old category
@@ -480,8 +474,8 @@ def main():
         n = int(parts[3])
         for i in range(4, n + 4):
             filename = "%s/%s" % (dir_path, parts[i])
-            print("Indexing:", filename)
-        collection.addDoc(filename, url, category)
+            print("Indexing:", filename, end=sys.stderr)
+            collection.addDoc(filename, url, category)
     f.close()
 
     # re-calculate IDF for all terms since the collection is changed
